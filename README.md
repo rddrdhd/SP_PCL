@@ -3,6 +3,7 @@ The goal of this project is to take 2 different .pcd files (model and scene),
 and get the position(s) of model(s) in scene (same subset of points) if there is any.
 
 For now, I am following some PCL tutorials. Now it does correspondece grouping between mug model and table scene with 3 mugs.
+![img.png](img.png) MODEL_cup_pink.pcd + SCENE_table_with_mugs.pcd = all models in scenes
 
 ##Ubuntu env:
 
@@ -17,4 +18,3 @@ In `/pcd_files` folder you can find models with `MODEL_ prefix` (mug), and scene
 ###To view the .pcd files in Ubuntu
 1. `sudo apt-get install pcl-tools`
 2. `pcl_viewer -multiview 1 <pcd_filepath>`
-
