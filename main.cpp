@@ -14,7 +14,7 @@
 #include <pcl/common/transforms.h>
 #include <pcl/console/parse.h>
 #include <pcl/point_types.h>
-typedef pcl::PointXYZRGBA PointType;
+typedef pcl::PointXYZ PointType;
 typedef pcl::Normal NormalType;
 typedef pcl::ReferenceFrame RFType;
 typedef pcl::SHOT352 DescriptorType;
