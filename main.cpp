@@ -14,6 +14,9 @@
 #include <pcl/common/transforms.h>
 #include <pcl/console/parse.h>
 #include <pcl/point_types.h>
+
+#include "src/loader.h"
+
 typedef pcl::PointXYZ PointType;
 typedef pcl::Normal NormalType;
 typedef pcl::ReferenceFrame RFType;
@@ -33,6 +36,7 @@ float rf_rad_ (0.015f);
 float descr_rad_ (0.02f);
 float cg_size_ (0.01f);
 float cg_thresh_ (5.0f);
+
 void
 showHelp (char *filename)
 {
@@ -154,20 +158,7 @@ computeCloudResolution (const pcl::PointCloud<PointType>::ConstPtr &cloud)
     }
     return res;
 }
-// Get shared pointer to a cloud from file
-pcl::PointCloud<pcl::PointXYZ>::Ptr get_cloud_from_file(std::string folderpath, std::string filepath){
 
-    //creates a PointCloud<PointXYZ> boost shared pointer and initializes it.
-    pcl::PointCloud<pcl::PointXYZ>::Ptr cloud (new pcl::PointCloud<pcl::PointXYZ>);
-
-    //loads the PointCloud data from file into the binary blob, works for binary/readable exported clouds
-    if (pcl::io::loadPCDFile<pcl::PointXYZ> ((folderpath+filepath).c_str(), *cloud) == -1)
-    {
-        auto msg = "Couldn't read file "+filepath+" \n";
-        PCL_ERROR (msg.c_str());
-    }
-    return cloud;
-}
 
 int main (int argc, char *argv[])
 {
