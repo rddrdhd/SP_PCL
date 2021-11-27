@@ -11,11 +11,9 @@ For now, I am following some PCL tutorials. Now it does correspondece grouping b
 1. In the terminal, go to the `/build` folder.
 2. `cmake ..`
 3. `make`
-4. `./main.cpp ../pcd_files/MODEL_cup_pink.pcd ../pcd_files/SCENE_table_with_mugs.pcd` 
+4. `./main` 
 
-To display keypoints, run the commaind with `-k` option.
-
-To display help, run `./main.cpp -h`
+You can set some of the values in main.cpp
 ### Models
 In `/pcd_files` folder you can find models with `MODEL_ prefix` (mug), and scenes with `SCENE_` prefix (table with mugs).
 ### To view the .pcd files in Ubuntu
