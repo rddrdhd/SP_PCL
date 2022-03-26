@@ -12,6 +12,7 @@
 #include <pcl/kdtree/impl/kdtree_flann.hpp>
 #include <pcl/common/transforms.h>
 #include <pcl/console/parse.h>
+#include "src/PGMbReader.h"
 
 typedef pcl::PointXYZRGBA PointType;
 typedef pcl::Normal NormalType;
@@ -153,7 +154,51 @@ computeCloudResolution (const pcl::PointCloud<PointType>::ConstPtr &cloud)
     }
     return res;
 }
+void printBinary(char c) {
+    for (int i = 7; i >= 0; --i) {
+        std::cout << ((c & (1 << i))? '1' : '0');
+    }
+}
+std::string getBinary(char c, char c2) {
+    std::string b;
+    for (int i = 7; i >= 0; --i) {
+        b.push_back(((c & (1 << i))? '1' : '0'));
+    }
+    for (int i = 7; i >= 0; --i) {
+        b.push_back(((c2 & (1 << i))? '1' : '0'));
+    }
+    return b;
+}
+int getPixelDistance(const std::string& b) {
+    unsigned long long value = std::stoull(b, nullptr, 2);
+    int distance = int(value / 5);
+    return distance;
+}
+int main(){
+    auto* pgm = static_cast<PGMImage *>(malloc(sizeof(PGMImage)));
+    const char* ipfile;
+    ipfile = "/media/rddrdhd/Data/School/SP/project_c/pgm_files/20190902_093746_012_depth.pgm";
 
+    printf("\tip file : %s\n", ipfile);
+
+    // Process the image and print
+    // its details
+    if (PGMbReader::openPGM(pgm, ipfile)){
+        PGMbReader::printImageDetails(pgm, ipfile);
+        std::vector<int> pixels;
+        for(int x = 0; x<pgm->width; x++){
+            for(int y = 0; y<pgm->height;y+=2){
+                auto s = getBinary(pgm->data[x][y],pgm->data[x][y+1] );
+                auto d = getPixelDistance(s);
+                cout<< s << ": " << d <<endl;
+            }
+        }
+        printf("a");
+    }
+
+    return 0;
+}
+/*
 int
 main (int argc, char *argv[])
 {
@@ -419,3 +464,4 @@ main (int argc, char *argv[])
 
     return (0);
 }
+ */
