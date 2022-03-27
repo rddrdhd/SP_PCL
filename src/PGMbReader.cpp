@@ -74,7 +74,7 @@ bool PGMbReader::openPGM(PGMImage* pgm,
         for (int i = 0; i < pgm->height; i++) {
             pgm->data[i] = static_cast<unsigned char *>(malloc(pgm->width * sizeof(unsigned char)));
 
-            printf("%d:%c",i, pgm->data[i][0]);
+            //printf("%d:%c",i, pgm->data[i][0]);
             // If memory allocation is failed
             if (pgm->data[i] == NULL) {
                 fprintf(stderr, "malloc failed\n");

@@ -20,6 +20,12 @@ typedef struct PGMImage {
     unsigned int maxValue;
 } PGMImage;
 
+typedef struct Coords {
+    float x;
+    float y;
+    float z;
+} Coords;
+
 class PGMbReader {
 public:
     static void ignoreComments(FILE* fp);

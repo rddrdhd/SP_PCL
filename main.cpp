@@ -174,25 +174,70 @@ int getPixelDistance(const std::string& b) {
     int distance = int(value / 5);
     return distance;
 }
+
+pcl::PointXYZ getCoords(float depth, float fov_x,float fov_y, int xv, int yv, int cam_width, int cam_height){
+    float h = float(cam_height)/2; // coordinate O for vertical middle of plane
+    float w = float(cam_width)/2; // coordinate O for horizontal middle of plane
+    float f_h = h / (2*tan(fov_x/2));
+    float f_w = w / (2*tan(fov_y/2));
+    yv -= h;
+    xv -= w;
+
+    float xw, yw, zw;
+    zw = depth;
+    yw = zw*float(yv)/f_h;
+    xw = zw*float(xv)/f_w;
+    return {xw, yw, zw};
+}
+
+void saveCloud(const pcl::PointCloud<pcl::PointXYZ>& cloud, std::string file_name){
+    cout << "aaa"<<endl;
+    pcl::io::savePCDFileASCII (file_name, cloud);
+    std::cerr << "Saved " << cloud.size () << " data points to "<<file_name << std::endl;
+
+    //for (const auto& point: cloud)
+    //    std::cerr << "    " << point.x << " " << point.y << " " << point.z << std::endl;
+}
+
+
+
 int main(){
     auto* pgm = static_cast<PGMImage *>(malloc(sizeof(PGMImage)));
     const char* ipfile;
-    ipfile = "/media/rddrdhd/Data/School/SP/project_c/pgm_files/20190902_093746_012_depth.pgm";
+    ipfile = "/media/rddrdhd/Data/School/SP/project_c/pgm_files/20201017_102106_950_depth.pgm";
 
     printf("\tip file : %s\n", ipfile);
-
+    ;
     // Process the image and print
     // its details
     if (PGMbReader::openPGM(pgm, ipfile)){
         PGMbReader::printImageDetails(pgm, ipfile);
-        std::vector<int> pixels;
-        for(int x = 0; x<pgm->width; x++){
-            for(int y = 0; y<pgm->height;y+=2){
+        pcl::PointCloud<pcl::PointXYZ> cloud(pgm->width, pgm->height);
+
+        int points_count = int(pgm->width * pgm->height);
+        cloud.resize(points_count);
+
+        std::vector<pcl::PointXYZ> points;
+        for(int x = 0; x<(pgm->height); x++){
+            for(int y = 0; y<(pgm->width*2);y+=2){
                 auto s = getBinary(pgm->data[x][y],pgm->data[x][y+1] );
                 auto d = getPixelDistance(s);
-                cout<< s << ": " << d <<endl;
+                auto coords = getCoords(float(d),  737.078125, 738.515625,x, y, int(pgm->width), int(pgm->height) );
+                //points.push_back(coords);
+                cloud[x*pgm->width + y].x = coords.x;
+                cloud[x*pgm->width + y].y = coords.y;
+                cloud[x*pgm->width + y].z = coords.z;
             }
         }
+       /* for (int point_id = 0; point_id < points_count; ++point_id)
+        {
+            cloud[point_id].x = points[point_id].x;
+            cloud[point_id].y = points[point_id].y;
+            cloud[point_id].z = points[point_id].z;
+        }*/
+
+        saveCloud(cloud, "../my_cloud.pcd");
+
         printf("a");
     }
 
