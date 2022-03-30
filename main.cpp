@@ -164,11 +164,13 @@ computeCloudResolution (const pcl::PointCloud<PointType>::ConstPtr &cloud)
     }
     return res;
 }
+
 void printBinary(char c) {
     for (int i = 7; i >= 0; --i) {
         std::cout << ((c & (1 << i))? '1' : '0');
     }
 }
+
 std::string getBinary(char c, char c2) {
     std::string b;
     for (int i = 7; i >= 0; --i) {
@@ -184,38 +186,18 @@ int getPixelDistance(const std::string& b) {
     return int(value / CAM_D_SCALE);
 }
 
-pcl::PointXYZ getCoords(float depth, int xv, int yv){
+pcl::PointXYZ getPointXYZ(float depth, int xv, int yv){ //https://github.com/IntelRealSense/realsense-ros/issues/1342
     float xw, yw, zw;
-    // coordinates 0,0 should be the middle of screen
-    // u0, v0 - optical centre of the image plane
-    // fx, fy - measure the position of the image plane wrt to the camera centre.
-    float h = float(CAM_H)/2;
-    float w = float(CAM_W)/2;
-    float f_x = h / (2 * tan(CAM_FX / 2));
-    float f_y = w / (2 * tan(CAM_FY / 2));
-    yv -= int(h);
-    xv -= int(w);
-
+    //float u = xv - (CAM_W/2);
+    //float v = yv - (CAM_H/2);
     zw = depth;
-    yw = depth * float(yv) / f_x;
-    xw = depth * float(xv) / f_y;
-
-    return {xw, yw, zw};
-}
-pcl::PointXYZ getCoordsv2(float depth,  int xv, int yv){ //https://github.com/IntelRealSense/realsense-ros/issues/1342
-    float xw, yw, zw;
-
-    float u = xv - (CAM_W/2);
-    float v = yv - (CAM_H/2);
-
-     zw = depth;
-     xw= (float(u) - CAM_PPX) * zw / CAM_FX;
-     yw = (float(v) - CAM_PPY) * zw / CAM_FY;
+    xw= (float(xv) - CAM_PPX) * zw / CAM_FX;
+    yw = (float(yv) - CAM_PPY) * zw / CAM_FY;
 
     return {xw, yw, zw};
 }
 
-void saveCloud(const pcl::PointCloud<pcl::PointXYZ>& cloud, std::string file_name){
+void savePCLPointCloud(const pcl::PointCloud<pcl::PointXYZ>& cloud, std::string file_name){
     cout << "saving..."<<endl;
     pcl::io::savePCDFileASCII (file_name, cloud);
     std::cerr << "Saved " << cloud.size () << " data points to "<<file_name << std::endl;
@@ -223,34 +205,35 @@ void saveCloud(const pcl::PointCloud<pcl::PointXYZ>& cloud, std::string file_nam
     //for (const auto& point: cloud)
     //    std::cerr << "    " << point.x << " " << point.y << " " << point.z << std::endl;
 }
-
-
-
-int main(){
+void PGMtoPCD(const char* pgm_filepath, const char* pcd_filepath){
+    printf("TODO"); // TODO use OpenCV for loading PGM
+}
+void savePointCloudFromPGM(const char* pgm_filepath, const char* pcd_filepath){
     auto* pgm = static_cast<PGMImage *>(malloc(sizeof(PGMImage)));
     const char* ipfile;
-    ipfile = "/media/rddrdhd/Data/School/SP/project_c/pgm_files/20201017_102106_950_depth.pgm";
-
+    ipfile = pgm_filepath;
     printf("file : %s\n", ipfile);
 
-    // Process the image and print
-    // its details
+    // Process the image and print its details
     if (PGMbReader::openPGM(pgm, ipfile)){
         PGMbReader::printImageDetails(pgm, ipfile);
         pcl::PointCloud<pcl::PointXYZ> cloud(pgm->width, pgm->height);
 
         int points_count = int(pgm->width * pgm->height);
         cloud.resize(points_count);
-
+        //printf("cam:%dx%d == pgm:%dx%d\n", CAM_W, CAM_H, pgm->width, pgm->height);
         std::vector<pcl::PointXYZ> points;
-        for(int x = 0; x<(CAM_H); x++){
-            for(int y = 0; y<(CAM_W);y++){
-                auto s = getBinary(pgm->data[x][y*2],pgm->data[x][y*2+1] ); // jas 16b = 2x8b
-                auto d = getPixelDistance(s);
-                auto coords = getCoordsv2(float(d),x, y);
+        int row, col;
+        for(row = 0; row < (CAM_H); row++){ //768
+            for(col = 0; col < (CAM_W); col++){ //1280
+                auto bin_string = getBinary(pgm->data[row][col * 2], pgm->data[row][col * 2 + 1] ); // jas 16b = 2x8b
+                auto mm_depth = getPixelDistance(bin_string); // 0-13107 mm
+                auto coords = getPointXYZ(float(mm_depth), row, col);
                 points.push_back(coords);
             }
         }
+        //printf("%dx%d", row, col);
+        //printf("points:%d (%dx%d)\n", points_count, pgm->width, pgm->height);
         for (int point_id = 0; point_id < points_count; ++point_id)
         {
             cloud[point_id].x = points[point_id].x;
@@ -258,17 +241,12 @@ int main(){
             cloud[point_id].z = points[point_id].z;
         }
 
-        saveCloud(cloud, "../my_cloud.pcd");
-
-        printf("done");
+        savePCLPointCloud(cloud, pcd_filepath);
     }
 
-    return 0;
 }
-/*
-int
-main (int argc, char *argv[])
-{
+
+int compareCloud(int argc, char *argv[]){
     parseCommandLine (argc, argv);
 
     pcl::PointCloud<PointType>::Ptr model (new pcl::PointCloud<PointType> ());
@@ -528,7 +506,11 @@ main (int argc, char *argv[])
     {
         viewer.spinOnce ();
     }
-
-    return (0);
+    return(0);
 }
- */
+
+int main(int argc, char *argv[]){
+    savePointCloudFromPGM("../pgm_files/20201017_102106_950_depth.pgm","../my_cloud.pcd");
+    //compareCloud(argc, argv);
+    return 0;
+}
