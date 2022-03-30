@@ -14,10 +14,20 @@
 #include <pcl/console/parse.h>
 #include "src/PGMbReader.h"
 
+#define CAM_PPX 542.554688 //The ppx and ppy fields describe the pixel coordinates of the principal point (center of projection)
+#define CAM_PPY 394.199219 // The ppx and ppy fields describe the pixel coordinates of the principal point (center of projection)
+#define CAM_FX 737.078125 // The fx and fy fields describe the focal length of the image, as a multiple of pixel width and height
+#define CAM_FY 738.515625 // The fx and fy fields describe the focal length of the image, as a multiple of pixel width and height
+#define CAM_D_SCALE 5.0
+#define CAM_W 1280
+#define CAM_H 768
+#define MODEL_SCALE 0.8
+
 typedef pcl::PointXYZRGBA PointType;
 typedef pcl::Normal NormalType;
 typedef pcl::ReferenceFrame RFType;
 typedef pcl::SHOT352 DescriptorType;
+
 
 std::string model_filename_;
 std::string scene_filename_;
@@ -162,36 +172,51 @@ void printBinary(char c) {
 std::string getBinary(char c, char c2) {
     std::string b;
     for (int i = 7; i >= 0; --i) {
-        b.push_back(((c & (1 << i))? '1' : '0'));
+        b.push_back(((c2 & (1 << i))? '1' : '0'));
     }
     for (int i = 7; i >= 0; --i) {
-        b.push_back(((c2 & (1 << i))? '1' : '0'));
+        b.push_back(((c & (1 << i))? '1' : '0'));
     }
     return b;
 }
 int getPixelDistance(const std::string& b) {
     unsigned long long value = std::stoull(b, nullptr, 2);
-    int distance = int(value / 5);
-    return distance;
+    return int(value / CAM_D_SCALE);
 }
 
-pcl::PointXYZ getCoords(float depth, float fov_x,float fov_y, int xv, int yv, int cam_width, int cam_height){
-    float h = float(cam_height)/2; // coordinate O for vertical middle of plane
-    float w = float(cam_width)/2; // coordinate O for horizontal middle of plane
-    float f_h = h / (2*tan(fov_x/2));
-    float f_w = w / (2*tan(fov_y/2));
-    yv -= h;
-    xv -= w;
-
+pcl::PointXYZ getCoords(float depth, int xv, int yv){
     float xw, yw, zw;
+    // coordinates 0,0 should be the middle of screen
+    // u0, v0 - optical centre of the image plane
+    // fx, fy - measure the position of the image plane wrt to the camera centre.
+    float h = float(CAM_H)/2;
+    float w = float(CAM_W)/2;
+    float f_x = h / (2 * tan(CAM_FX / 2));
+    float f_y = w / (2 * tan(CAM_FY / 2));
+    yv -= int(h);
+    xv -= int(w);
+
     zw = depth;
-    yw = zw*float(yv)/f_h;
-    xw = zw*float(xv)/f_w;
+    yw = depth * float(yv) / f_x;
+    xw = depth * float(xv) / f_y;
+
+    return {xw, yw, zw};
+}
+pcl::PointXYZ getCoordsv2(float depth,  int xv, int yv){ //https://github.com/IntelRealSense/realsense-ros/issues/1342
+    float xw, yw, zw;
+
+    float u = xv - (CAM_W/2);
+    float v = yv - (CAM_H/2);
+
+     zw = depth;
+     xw= (float(u) - CAM_PPX) * zw / CAM_FX;
+     yw = (float(v) - CAM_PPY) * zw / CAM_FY;
+
     return {xw, yw, zw};
 }
 
 void saveCloud(const pcl::PointCloud<pcl::PointXYZ>& cloud, std::string file_name){
-    cout << "aaa"<<endl;
+    cout << "saving..."<<endl;
     pcl::io::savePCDFileASCII (file_name, cloud);
     std::cerr << "Saved " << cloud.size () << " data points to "<<file_name << std::endl;
 
@@ -206,8 +231,8 @@ int main(){
     const char* ipfile;
     ipfile = "/media/rddrdhd/Data/School/SP/project_c/pgm_files/20201017_102106_950_depth.pgm";
 
-    printf("\tip file : %s\n", ipfile);
-    ;
+    printf("file : %s\n", ipfile);
+
     // Process the image and print
     // its details
     if (PGMbReader::openPGM(pgm, ipfile)){
@@ -218,27 +243,24 @@ int main(){
         cloud.resize(points_count);
 
         std::vector<pcl::PointXYZ> points;
-        for(int x = 0; x<(pgm->height); x++){
-            for(int y = 0; y<(pgm->width*2);y+=2){
-                auto s = getBinary(pgm->data[x][y],pgm->data[x][y+1] );
+        for(int x = 0; x<(CAM_H); x++){
+            for(int y = 0; y<(CAM_W);y++){
+                auto s = getBinary(pgm->data[x][y*2],pgm->data[x][y*2+1] ); // jas 16b = 2x8b
                 auto d = getPixelDistance(s);
-                auto coords = getCoords(float(d),  737.078125, 738.515625,x, y, int(pgm->width), int(pgm->height) );
-                //points.push_back(coords);
-                cloud[x*pgm->width + y].x = coords.x;
-                cloud[x*pgm->width + y].y = coords.y;
-                cloud[x*pgm->width + y].z = coords.z;
+                auto coords = getCoordsv2(float(d),x, y);
+                points.push_back(coords);
             }
         }
-       /* for (int point_id = 0; point_id < points_count; ++point_id)
+        for (int point_id = 0; point_id < points_count; ++point_id)
         {
             cloud[point_id].x = points[point_id].x;
             cloud[point_id].y = points[point_id].y;
             cloud[point_id].z = points[point_id].z;
-        }*/
+        }
 
         saveCloud(cloud, "../my_cloud.pcd");
 
-        printf("a");
+        printf("done");
     }
 
     return 0;
