@@ -8,5 +8,9 @@ include_directories(${PCL_INCLUDE_DIRS})
 link_directories(${PCL_LIBRARY_DIRS})
 add_definitions(${PCL_DEFINITIONS})
 
-add_executable (main main.cpp src/loader.h src/loader.cpp src/MyCloud.cpp src/MyCloud.h src/CommandLineParser.cpp src/CommandLineParser.h src/PGMbReader.cpp src/PGMbReader.h)
-target_link_libraries (main ${PCL_LIBRARIES})
+set(OpenCV_FOUND 1)
+find_package(OpenCV REQUIRED)
+include_directories( ${OpenCV_INCLUDE_DIRS} )
+
+add_executable (main main.cpp src/loader.h src/loader.cpp src/PGMbReader.cpp src/PGMbReader.h)
+target_link_libraries (main ${PCL_LIBRARIES} ${OpenCV_LIBS})

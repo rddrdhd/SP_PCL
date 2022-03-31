@@ -12,6 +12,9 @@
 #include <pcl/kdtree/impl/kdtree_flann.hpp>
 #include <pcl/common/transforms.h>
 #include <pcl/console/parse.h>
+#include <opencv4/opencv2/core.hpp>
+#include <opencv4/opencv2/imgcodecs.hpp>
+#include <opencv4/opencv2/highgui.hpp>
 #include "src/PGMbReader.h"
 
 #define CAM_PPX 542.554688 //The ppx and ppy fields describe the pixel coordinates of the principal point (center of projection)
@@ -21,7 +24,10 @@
 #define CAM_D_SCALE 5.0
 #define CAM_W 1280
 #define CAM_H 768
-#define MODEL_SCALE 0.8
+#define PGM_W 1024
+#define PGM_H 768
+#define PGM_SCALE 0.8
+#define PGM_MAX_D 65535
 
 typedef pcl::PointXYZRGBA PointType;
 typedef pcl::Normal NormalType;
@@ -43,7 +49,8 @@ float rf_rad_ (0.015f);
 float descr_rad_ (0.02f);
 float cg_size_ (0.01f);
 float cg_thresh_ (5.0f);
-
+using namespace cv;
+using namespace std;
 void
 showHelp (char *filename)
 {
@@ -165,11 +172,6 @@ computeCloudResolution (const pcl::PointCloud<PointType>::ConstPtr &cloud)
     return res;
 }
 
-void printBinary(char c) {
-    for (int i = 7; i >= 0; --i) {
-        std::cout << ((c & (1 << i))? '1' : '0');
-    }
-}
 
 std::string getBinary(char c, char c2) {
     std::string b;
@@ -510,7 +512,49 @@ int compareCloud(int argc, char *argv[]){
 }
 
 int main(int argc, char *argv[]){
-    savePointCloudFromPGM("../pgm_files/20201017_102106_950_depth.pgm","../my_cloud.pcd");
+    const char* filename = "/media/rddrdhd/Data/School/SP/project_c/pgm_files/20201017_102106_950_depth.pgm";
+    const char* pcd_filepath = "../my_cloud.pcd";
+    Mat img = imread(filename, -1); //1024x768, depth=2
+    cout << img.rows << "x" << img.cols << "."<<img.depth()<<endl;
+    pcl::PointCloud<pcl::PointXYZ> cloud(img.cols, img.rows);
+
+    int points_count = int(img.cols * img.rows);
+    cloud.resize(points_count);
+    //printf("cam:%dx%d == pgm:%dx%d\n", CAM_W, CAM_H, pgm->width, pgm->height);
+    std::vector<pcl::PointXYZ> points;
+    int pc = 0;
+    int x, y, depth;
+    for(y = 0; y<(img.cols/2);y++){
+        for(x = 0; x<img.rows;x++){
+            pc++;
+            depth = img.at<ushort>(y,x);
+            pcl::PointXYZ point = getPointXYZ(depth,x,y);
+            if(y==0 and x<10){
+
+                cout << "\ni "<<x<<"\tx "<<point.x<<"\ty "<<point.y<<"\tz "<<point.z <<"\td "<< depth;
+
+            }
+            points.push_back(point);
+        }
+    }
+    for (int point_id = 0; point_id < (points_count/2); ++point_id)
+    {
+        cloud[point_id].x = points[point_id].x;
+        cloud[point_id].y = points[point_id].y;
+        cloud[point_id].z = points[point_id].z;
+    }
+
+    savePCLPointCloud(cloud, pcd_filepath);
+    //img.convertTo(img, CV_16U, 255.0 / 655536.0);
+       // Mat idk;
+        //img.convertTo(idk,CV_16U);
+    imshow("Display window", img);
+    waitKey(0);
+
+
+    //
+    //savePointCloudFromPGM("../pgm_files/20201017_102106_950_depth.pgm","../my_cloud.pcd");
     //compareCloud(argc, argv);
+    printf("opencv version: %d.%d.%d\n",CV_VERSION_MAJOR,CV_VERSION_MINOR,CV_VERSION_REVISION);
     return 0;
 }
