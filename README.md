@@ -8,16 +8,17 @@ For now, I am following some PCL tutorials. Now it does correspondece grouping b
 ## Ubuntu env:
 
 ### To run this project in terminal:
-1. In the terminal, go to the `/build` folder.
+1. Go to the `/build` folder.
 2. `cmake ..`
 3. `make`
-4. `./main.cpp ../pcd_files/MODEL_cup_pink.pcd ../pcd_files/SCENE_table_with_mugs.pcd` 
+4. `./main.cpp model.pcd scene.pcd`
 
-To display keypoints, run the commaind with `-k` option.
 
 To display help, run `./main.cpp -h`
-### Models
-In `/pcd_files` folder you can find models with `MODEL_ prefix` (mug), and scenes with `SCENE_` prefix (table with mugs).
-### To view the .pcd files in Ubuntu
-1. `sudo apt-get install pcl-tools`
-2. `pcl_viewer -multiview 1 <pcd_filepath>`
+### Data
+In `/pcd_files` directory you can find models with `MODEL_cup_` prefix (mug), and scenes with `SCENE_table_` prefix (table with mugs).
+
+In `/pcd_real_scenes` directory you can clouds from PGM files. In `/pcd_valve_resized` there are valve models in scale 1:1 to scenes.
+
+
+To view the .pcd files in Ubuntu `pcl_viewer -multiview 1 <pcd_filepath>`

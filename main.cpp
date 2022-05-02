@@ -1,9 +1,8 @@
 #include <pcl/io/pcd_io.h>
 #include <pcl/correspondence.h>
 #include <pcl/point_types.h>
-#include <pcl/filters/voxel_grid.h>
-#include <pcl/conversions.h>
 #include <pcl/point_cloud.h>
+#include <pcl/surface/mls.h>
 #include <pcl/features/normal_3d_omp.h>
 #include <pcl/features/shot_omp.h>
 #include <pcl/features/board.h>
@@ -17,8 +16,6 @@
 #include <pcl/console/parse.h>
 #include <opencv4/opencv2/core.hpp>
 #include <opencv4/opencv2/imgcodecs.hpp>
-#include <opencv4/opencv2/highgui.hpp>
-#include "src/PGMbReader.h"
 
 #define CAM_PPX 542.554688 //The ppx and ppy fields describe the pixel coordinates of the principal point (center of projection)
 #define CAM_PPY 394.199219 // The ppx and ppy fields describe the pixel coordinates of the principal point (center of projection)
@@ -46,8 +43,8 @@ bool show_keypoints_ (false);
 bool show_correspondences_ (false);
 bool use_cloud_resolution_ (false);
 bool use_hough_ (true);
-float model_ss_ (0.1f);
-float scene_ss_ (0.3f);
+float model_ss_ (0.012f);
+float scene_ss_ (0.03f);
 float rf_rad_ (0.015f);
 float descr_rad_ (0.02f);
 float cg_size_ (0.01f);
@@ -283,18 +280,18 @@ int compareCloud(int argc, char *argv[]){
     //
 
     std::cout << "Computing Descriptor" << std::endl << std::endl;
-    pcl::SHOTEstimationOMP<PointType, NormalType, DescriptorType> descr_est;
-    descr_est.setRadiusSearch (descr_rad_);
+    pcl::SHOTEstimationOMP<PointType, NormalType, DescriptorType> estimated_descriptor;
+    estimated_descriptor.setRadiusSearch (descr_rad_);
 
-    descr_est.setInputCloud (model_keypoints);
-    descr_est.setInputNormals (model_normals);
-    descr_est.setSearchSurface (model);
-    descr_est.compute (*model_descriptors);
+    estimated_descriptor.setInputCloud (model_keypoints);
+    estimated_descriptor.setInputNormals (model_normals);
+    estimated_descriptor.setSearchSurface (model);
+    estimated_descriptor.compute (*model_descriptors);
 
-    descr_est.setInputCloud (scene_keypoints);
-    descr_est.setInputNormals (scene_normals);
-    descr_est.setSearchSurface (scene);
-    descr_est.compute (*scene_descriptors);
+    estimated_descriptor.setInputCloud (scene_keypoints);
+    estimated_descriptor.setInputNormals (scene_normals);
+    estimated_descriptor.setSearchSurface (scene);
+    estimated_descriptor.compute (*scene_descriptors);
 
     //
     //  Find Model-Scene Correspondences with KdTree
@@ -468,16 +465,16 @@ int compareCloud(int argc, char *argv[]){
 
     auto stop = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::seconds>(stop - start);
-    cout << "Duration:" << duration.count() << endl;
+    cout << "Duration:" << duration.count() << " s" << endl;
     while (!viewer.wasStopped ())
     {
         viewer.spinOnce ();
     }
     return(0);
 }
+
 pcl::PointCloud<pcl::PointXYZ> getCloudFromPGM(const char* filename){
-    Mat img = imread(filename, -1); //1024x768
-    //imshow("Display window", img); waitKey(0);
+    Mat img = imread(filename, -1);
     pcl::PointCloud<pcl::PointXYZ> cloud((PGM_W), PGM_H);
     cloud.resize(PGM_W*PGM_H);
     float depth;
@@ -489,9 +486,9 @@ pcl::PointCloud<pcl::PointXYZ> getCloudFromPGM(const char* filename){
     }
     return cloud;
 }
+
 pcl::PointCloud<pcl::PointXYZ> getFilteredCloudFromPGM(const char* filename, int scale){
-    Mat img = imread(filename, -1); //1024x768
-    //imshow("Display window", img); waitKey(0);
+    Mat img = imread(filename, -1);
     pcl::PointCloud<pcl::PointXYZ> cloud((PGM_W), PGM_H);
     cloud.resize((PGM_W*PGM_H));
     float depth;
@@ -504,18 +501,19 @@ pcl::PointCloud<pcl::PointXYZ> getFilteredCloudFromPGM(const char* filename, int
     }
     return cloud;
 }
+
 int main(int argc, char *argv[]){
     printf("opencv version: %d.%d.%d\n",CV_VERSION_MAJOR,CV_VERSION_MINOR,CV_VERSION_REVISION);
 
+    const char* pgm_scene_filepath = "/media/rddrdhd/Data/School/SP/project_c/pgm_files/20201017_102106_950_depth.pgm"; // 1 310 976 points
+    const char* pcd_scene_filepath_downsampled = "/media/rddrdhd/Data/School/SP/project_c/pcd_files/SCENE_down_cloud.pcd"; // 807 530 points
+    const char* pcd_model_filepath_remeshed= "/media/rddrdhd/Data/School/SP/project_c/pcd_valve_resized/MODEL_valve_remesh.pcd"; //10 042 points
 
-    const char* pgm_filepath = "/media/rddrdhd/Data/School/SP/project_c/pgm_files/20201017_102106_950_depth.pgm";
-    const char* pcd_filepath = "pgm_files/SCENE_down_cloud.pcd";
+    // load PGM and save PCD
+    //auto SCENE_cloud = getFilteredCloudFromPGM(pgm_scene_filepath, 5);
+    //savePCLPointCloud(SCENE_cloud, pcd_scene_filepath_downsampled);
 
-    auto cloud = getFilteredCloudFromPGM(pgm_filepath,5);
-    //auto cloud_filtered = downsampleCloud(cloud);
+    compareCloud(argc, argv);
 
-    savePCLPointCloud(cloud, pcd_filepath);
-
-   // compareCloud(argc, argv);
     return 0;
 }
