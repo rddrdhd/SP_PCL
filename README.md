@@ -6,7 +6,7 @@ For now, I am following some PCL tutorials. Now it does correspondece grouping b
 ![img.png](img.png) MODEL_cup_pink.pcd + SCENE_table_with_mugs.pcd = all models in scenes
 
 ## Ubuntu env:
-
+Download PCL: https://pointclouds.org/downloads/ 
 ### To run this project in terminal:
 1. Go to the `/build` folder.
 2. `cmake ..`
