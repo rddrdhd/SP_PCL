@@ -17,7 +17,10 @@
 #include <opencv4/opencv2/core.hpp>
 #include <opencv4/opencv2/imgcodecs.hpp>
 
+
+#include <pcl/console/time.h>
 #include <pcl/features/integral_image_normal.h>
+#include <pcl/features/pfh.h>
 
 #define CAM_PPX 542.554688 //The ppx and ppy fields describe the pixel coordinates of the principal point (center of projection)
 #define CAM_PPY 394.199219 // The ppx and ppy fields describe the pixel coordinates of the principal point (center of projection)
@@ -78,8 +81,7 @@ showHelp (char *filename)
     std::cout << "     --cg_thresh val:        Clustering threshold (default 5)" << std::endl << std::endl;
 }
 
-void
-parseCommandLine (int argc, char *argv[])
+void parseCommandLine (int argc, char *argv[])
 {
     //Show help
     if (pcl::console::find_switch (argc, argv, "-h"))
@@ -142,8 +144,7 @@ parseCommandLine (int argc, char *argv[])
     pcl::console::parse_argument (argc, argv, "--cg_thresh", cg_thresh_);
 }
 
-double
-computeCloudResolution (const pcl::PointCloud<PointType>::ConstPtr &cloud)
+double computeCloudResolution (const pcl::PointCloud<PointType>::ConstPtr &cloud)
 {
     double res = 0.0;
     int n_points = 0;
@@ -174,8 +175,6 @@ computeCloudResolution (const pcl::PointCloud<PointType>::ConstPtr &cloud)
     return res;
 }
 
-
-
 pcl::PointXYZ getPointXYZ(float depth, int xv, int yv){ //https://github.com/IntelRealSense/realsense-ros/issues/1342
     float xw, yw, zw;
     zw = depth;
@@ -193,6 +192,7 @@ void savePCLPointCloud(const pcl::PointCloud<pcl::PointXYZ>& cloud, std::string 
     //for (const auto& point: cloud)
     //    std::cerr << "    " << point.x << " " << point.y << " " << point.z << std::endl;
 }
+
 int compareCloud(int argc, char *argv[]){
 
     auto start = std::chrono::high_resolution_clock::now();
@@ -506,22 +506,12 @@ pcl::PointCloud<pcl::PointXYZ> getFilteredCloudFromPGM(const char* filename, int
     }
     return cloud;
 }
-pcl::PointCloud<pcl::Normal>::Ptr computeNormals(const char* filename, bool visualize, bool use_neighbours = true, int k_neighbours=10,float est_radius_meters = 0.03 ){
-    // load point cloud
-    pcl::PointCloud<pcl::PointXYZ>::Ptr cloud (new pcl::PointCloud<pcl::PointXYZ>);
-    pcl::io::loadPCDFile (filename, *cloud);
 
+pcl::PointCloud<pcl::Normal>::Ptr computeNormals(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud, bool visualize, bool use_neighbours = true, int k_neighbours=10,float est_radius_meters = 0.03 ){
+    pcl::console::TicToc tt;
+    tt.tic();
     // estimate normals
-
-/*
- *
-    pcl::PointCloud<pcl::Normal>::Ptr normals (new pcl::PointCloud<pcl::Normal>);
-    pcl::NormalEstimationOMP<pcl::PointXYZ, pcl::Normal> norm_est;
-    norm_est.setKSearch (k_neighbours);
-    norm_est.setInputCloud (cloud);
-    norm_est.compute (*normals);
-    */
-    pcl::NormalEstimation<pcl::PointXYZ, pcl::Normal> ne;
+    pcl::NormalEstimationOMP<pcl::PointXYZ, pcl::Normal> ne;
     ne.setInputCloud (cloud);
 
     // Create an empty kdtree representation, and pass it to the normal estimation object.
@@ -537,11 +527,12 @@ pcl::PointCloud<pcl::Normal>::Ptr computeNormals(const char* filename, bool visu
     } else {
         ne.setRadiusSearch (est_radius_meters);
     }
-    // Use all neighbors in a sphere of radius 3cm
-    //
 
     // Compute the features
     ne.compute (*normals);
+
+    double t = tt.toc();
+    pcl::console::print_value( "Computing Normals takes %.3f seconds\n", t );
     if(visualize){
         // visualize normals
         std::string window_name;
@@ -562,6 +553,49 @@ pcl::PointCloud<pcl::Normal>::Ptr computeNormals(const char* filename, bool visu
 
     return normals;
 }
+
+pcl::PointCloud<pcl::PFHSignature125>::Ptr computePFHDescriptors(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud, pcl::PointCloud<pcl::Normal>::Ptr normals, float radius_meters = 0.05, bool print=false){
+    pcl::console::TicToc tt;
+    tt.tic();
+
+
+
+
+    // Create the PFH estimation class, and pass the input dataset+normals to it
+    pcl::PFHEstimation<pcl::PointXYZ, pcl::Normal, pcl::PFHSignature125> pfh;
+    pfh.setInputCloud (cloud);
+    pfh.setInputNormals (normals);
+    // alternatively, if cloud is of tpe PointNormal, do pfh.setInputNormals (cloud);
+
+    // Create an empty kdtree representation, and pass it to the PFH estimation object.
+    // Its content will be filled inside the object, based on the given input dataset (as no other search surface is given).
+    pcl::search::KdTree<pcl::PointXYZ>::Ptr tree (new pcl::search::KdTree<pcl::PointXYZ> ());
+    //pcl::KdTreeFLANN<pcl::PointXYZ>::Ptr tree (new pcl::KdTreeFLANN<pcl::PointXYZ> ()); -- older call for PCL 1.5-
+    pfh.setSearchMethod (tree);
+
+    // Output datasets
+    pcl::PointCloud<pcl::PFHSignature125>::Ptr pfhs (new pcl::PointCloud<pcl::PFHSignature125> ());
+
+    // Use all neighbors in a sphere of radius 5cm
+    // IMPORTANT: the radius used here has to be larger than the radius used to estimate the surface normals!!!
+    pfh.setRadiusSearch (radius_meters);
+
+    // check normals
+    for (int i = 0; i < normals->size(); i++)
+    {
+        if (!pcl::isFinite<pcl::Normal>((*normals)[i]))
+        {
+            PCL_WARN("normals[%d] is not finite\n", i);
+        }
+    }
+    // Compute the features
+    pfh.compute(*pfhs);
+
+    double t = tt.toc();
+    pcl::console::print_value( "Persistent Feature Histogram takes %.3f seconds\n", t );
+    return pfhs;
+
+}
 int main(int argc, char *argv[]){
     printf("opencv version: %d.%d.%d\n",CV_VERSION_MAJOR,CV_VERSION_MINOR,CV_VERSION_REVISION);
 
@@ -581,9 +615,14 @@ int main(int argc, char *argv[]){
     //savePCLPointCloud(SCENE_cloud, pcd_scene_filepath_downsampled);
 
     //bool visualize, bool use_neighbours = true, int k_neighbours=10,float est_radius_meters = 0.03
-    computeNormals(pcd_model_cup_filepath, true,  true, 10, 0);
-    computeNormals(pcd_model_cup_filepath, true,  false, 0, 0.03);
 
+    pcl::PointCloud<pcl::PointXYZ>::Ptr cloud (new pcl::PointCloud<pcl::PointXYZ>);
+    pcl::io::loadPCDFile (pcd_model_valve_filepath_remeshed, *cloud);
+
+    auto normals = computeNormals(cloud, false, true, 10, 0);
+    //computeNormals(pcd_model_cup_filepath, true,  false, 0, 0.03);
+
+    auto descriptors = computePFHDescriptors(cloud, normals);
     //compareCloud(argc, argv);
 
     return 0;
