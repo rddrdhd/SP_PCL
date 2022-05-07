@@ -533,18 +533,19 @@ pcl::PointCloud<pcl::Normal>::Ptr computeNormals(pcl::PointCloud<pcl::PointXYZ>:
     ne.compute (*normals);
 
     double t = tt.toc();
-    pcl::console::print_value( "Computing Normals takes %.3f\n", t );
+    pcl::console::print_value( "Computing normals takes %.3f\n[0]:\t", t );
+    cout<<normals->points[0]<<endl;
     if(visualize){
         // visualize normals
         std::string window_name;
         if(use_neighbours){
-            window_name = "Normals: - neigh:"+ to_string(k_neighbours);
+            window_name = "Normals, k_neighbours = "+ to_string(k_neighbours);
         } else {
-            window_name =  "Normals: - radius:"+to_string( est_radius_meters);
+            window_name =  "Normals, radius = "+ to_string( est_radius_meters);
         }
         pcl::visualization::PCLVisualizer viewer(window_name);
         viewer.setBackgroundColor (0.0, 0.0, 0.5);
-        viewer.addPointCloudNormals<pcl::PointXYZ,pcl::Normal>(cloud, normals);
+        viewer.addPointCloudNormals<pcl::PointXYZ,pcl::Normal>(cloud, normals, 8, 15); //  level and scale for valve
 
         while (!viewer.wasStopped ())
         {
@@ -589,67 +590,116 @@ pcl::PointCloud<pcl::PFHSignature125>::Ptr computePFHDescriptors(pcl::PointCloud
     pfh.compute(*pfhs);
 
     double t = tt.toc();
-    pcl::console::print_value( "Persistent Feature Histogram takes %.3f\n", t );
+    pcl::console::print_value( "Persistent Feature Histogram takes %.3f\n[0]:\t", t );
+
+    cout << pfhs->points[0] << endl;
     return pfhs;
 
 }
-pcl::PointCloud<pcl::FPFHSignature33>::Ptr computeFPFHDescriptors(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud, pcl::PointCloud<pcl::Normal>::Ptr normals, float radius_meters = 0.05, bool print=false){
+pcl::PointCloud<pcl::FPFHSignature33>::Ptr computeFPFHDescriptors(
+        pcl::PointCloud<pcl::PointXYZ>::Ptr cloud,
+        pcl::PointCloud<pcl::Normal>::Ptr normals,
+        float radius_meters = 0.05,
+        bool print_all = false ){
+
+     pcl::console::TicToc tt;
+    tt.tic();
+    // Create the PFH estimation class, and pass the input dataset+normals to it
+
+    // Create the FPFH estimation class, and pass the input dataset+normals to it
+    pcl::FPFHEstimation<pcl::PointXYZ, pcl::Normal, pcl::FPFHSignature33> fpfh;
+    fpfh.setInputCloud (cloud);
+    fpfh.setInputNormals (normals);
+    // alternatively, if cloud is of tpe PointNormal, do fpfh.setInputNormals (cloud);
+
+    // Create an empty kdtree representation, and pass it to the FPFH estimation object.
+    // Its content will be filled inside the object, based on the given input dataset (as no other search surface is given).
+    pcl::search::KdTree<pcl::PointXYZ>::Ptr tree (new pcl::search::KdTree<pcl::PointXYZ>);
+
+    fpfh.setSearchMethod (tree);
+
+    // Output datasets
+    pcl::PointCloud<pcl::FPFHSignature33>::Ptr features (new pcl::PointCloud<pcl::FPFHSignature33> ());
+
+    // Use all neighbors in a sphere of radius 5cm
+    // IMPORTANT: the radius used here has to be larger than the radius used to estimate the surface normals!!!
+    fpfh.setRadiusSearch (radius_meters);
+
+    // Compute the features
+    fpfh.compute (*features);
+
+    double t = tt.toc();
+    pcl::console::print_value( "Fast Persistent Feature Histogram takes %.3f\n[0]:\t", t );
+    cout<<features->points[0]<<endl;
+    if(print_all){
+        for (int i = 1; i < features->size(); i++){
+            if(isFinite(features->points[i])){
+
+                cout <<"["<<i<<"]:"<<"\t"<< features->points[i] << endl;
+            }
+        }
+    }
+    return features;
+}
+pcl::PointCloud<pcl::SHOT352>::Ptr computeSHOTDescriptors(
+        pcl::PointCloud<pcl::PointXYZ>::Ptr cloud,
+        pcl::PointCloud<pcl::Normal>::Ptr normals,
+        float radius_meters = 0.05 ){
     pcl::console::TicToc tt;
     tt.tic();
     // Create the PFH estimation class, and pass the input dataset+normals to it
-    pcl::FPFHEstimationOMP<pcl::PointXYZ, pcl::Normal, pcl::FPFHSignature33> fpfh;
-    fpfh.setSearchSurface(cloud);
-    fpfh.setInputCloud (cloud);
-    fpfh.setInputNormals (normals);
+    pcl::SHOTEstimationOMP<pcl::PointXYZ, pcl::Normal, pcl::SHOT352> shot;
+    shot.setInputCloud (cloud);
+    shot.setInputNormals (normals);
     // alternatively, if cloud is of tpe PointNormal, do pfh.setInputNormals (cloud);
 
     // Create an empty kdtree representation, and pass it to the PFH estimation object.
     // Its content will be filled inside the object, based on the given input dataset (as no other search surface is given).
-    pcl::search::KdTree<pcl::PointXYZ>::Ptr tree (new pcl::search::KdTree<pcl::PointXYZ> ());
-    //pcl::KdTreeFLANN<pcl::PointXYZ>::Ptr tree (new pcl::KdTreeFLANN<pcl::PointXYZ> ()); -- older call for PCL 1.5-
-    fpfh.setSearchMethod (tree);
-    fpfh.setRadiusSearch (radius_meters);
+
+    shot.setRadiusSearch (radius_meters);
     // Output datasets
-    pcl::PointCloud<pcl::FPFHSignature33>::Ptr descrs (new pcl::PointCloud<pcl::FPFHSignature33> ());
+    pcl::PointCloud<pcl::SHOT352>::Ptr descrs (new pcl::PointCloud<pcl::SHOT352> ());
 
     // Compute the features
-    fpfh.compute(*descrs);
+    shot.compute(*descrs);
 
     double t = tt.toc();
-    pcl::console::print_value( "Fast Persistent Feature Histogram takes %.3f\n", t );
-    return descrs;
+    pcl::console::print_value( "Signature of Histograms of Orientation takes %.3f\n", t );
 
+    cout << descrs->points[0] << endl;
+    return descrs;
 }
 
 int main(int argc, char *argv[]){
     printf("opencv version: %d.%d.%d\n",CV_VERSION_MAJOR,CV_VERSION_MINOR,CV_VERSION_REVISION);
-
+    //compareCloud(argc, argv);
    /* const char* pgm_scene_filepath = "/media/rddrdhd/Data/School/SP/project_c/pgm_files/20201017_102106_950_depth.pgm"; // 1 310 976 points
-    const char* pcd_scene_filepath_downsampled = "/media/rddrdhd/Data/School/SP/project_c/pcd_files/SCENE_down_cloud.pcd"; // 807 530 points*/
-     const char* pcd_scene_table_filepath = "/media/rddrdhd/Data/School/SP/project_c/pcd_files/SCENE_table_with_mugs.pcd"; // 1 310 976 points
-    const char* pcd_model_valve_filepath= "/media/rddrdhd/Data/School/SP/project_c/pcd_files/MODEL_valve.pcd"; //10 042 points
-    const char* pcd_model_cup_filepath= "/media/rddrdhd/Data/School/SP/project_c/pcd_files/MODEL_cup_pink.pcd"; //10 042 points
+    const char* pcd_scene_filepath_downsampled = "/media/rddrdhd/Data/School/SP/project_c/pcd_files/SCENE_down_cloud.pcd"; // 807 530 points
+   const char* pcd_scene_table_filepath = "/media/rddrdhd/Data/School/SP/project_c/pcd_files/SCENE_table_with_mugs.pcd"; // 1 310 976 points
+    */
 
+    const char* pcd_model_cup_filepath= "/media/rddrdhd/Data/School/SP/project_c/pcd_files/MODEL_cup_pink.pcd";
     const char* pcd_model_valve_filepath_remeshed= "/media/rddrdhd/Data/School/SP/project_c/pcd_valve_resized/MODEL_valve_remesh.pcd"; //10 042 points
-
-
-
-
+    const char* pcd_model_valve_filepath= "/media/rddrdhd/Data/School/SP/project_c/pcd_files/MODEL_valve.pcd";
     // load PGM and save PCD
     //auto SCENE_cloud = getFilteredCloudFromPGM(pgm_scene_filepath, 5);
     //savePCLPointCloud(SCENE_cloud, pcd_scene_filepath_downsampled);
 
-    //bool visualize, bool use_neighbours = true, int k_neighbours=10,float est_radius_meters = 0.03
+
 
     pcl::PointCloud<pcl::PointXYZ>::Ptr cloud (new pcl::PointCloud<pcl::PointXYZ>);
     pcl::io::loadPCDFile (pcd_model_valve_filepath_remeshed, *cloud);
 
-    auto normals = computeNormals(cloud, false, true, 10, 0);
-    //computeNormals(pcd_model_cup_filepath, true,  false, 0, 0.03);
+    //bool visualize, bool use_neighbours = true, int k_neighbours=10,float est_radius_meters = 0.03
+    //auto normals = computeNormals(cloud, true, true, 10, 0);
+    auto normals = computeNormals(cloud, true,  false, 0, 10);
+    cout << "Normals count:" << normals->size() << endl;
 
-    auto descriptors = computePFHDescriptors(cloud, normals);
-    auto Fdescriptors = computeFPFHDescriptors(cloud, normals);
-    //compareCloud(argc, argv);
+    //auto features = computePFHDescriptors(cloud, normals, 0.05);
+    //auto features = computeFPFHDescriptors(cloud, normals, 0.05); // bigger radius than for normals!
+    //auto features = computeSHOTDescriptors(cloud, normals, 0.05); // TODO fix the local reference
+
+
 
     return 0;
 }
