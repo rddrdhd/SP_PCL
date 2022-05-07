@@ -545,7 +545,7 @@ pcl::PointCloud<pcl::Normal>::Ptr computeNormals(pcl::PointCloud<pcl::PointXYZ>:
         }
         pcl::visualization::PCLVisualizer viewer(window_name);
         viewer.setBackgroundColor (0.0, 0.0, 0.5);
-        viewer.addPointCloudNormals<pcl::PointXYZ,pcl::Normal>(cloud, normals, 8, 15); //  level and scale for valve
+        viewer.addPointCloudNormals<pcl::PointXYZ,pcl::Normal>(cloud, normals, 1, 5); //  level (opak hustoty) and scale for valve
 
         while (!viewer.wasStopped ())
         {
@@ -690,9 +690,7 @@ int main(int argc, char *argv[]){
     pcl::PointCloud<pcl::PointXYZ>::Ptr cloud (new pcl::PointCloud<pcl::PointXYZ>);
     pcl::io::loadPCDFile (pcd_model_valve_filepath_remeshed, *cloud);
 
-    //bool visualize, bool use_neighbours = true, int k_neighbours=10,float est_radius_meters = 0.03
-    //auto normals = computeNormals(cloud, true, true, 10, 0);
-    auto normals = computeNormals(cloud, true,  false, 0, 10);
+    auto normals = computeNormals(cloud, true,  true, 10);
     cout << "Normals count:" << normals->size() << endl;
 
     //auto features = computePFHDescriptors(cloud, normals, 0.05);
