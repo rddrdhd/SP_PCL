@@ -21,6 +21,7 @@
 #include <pcl/console/time.h>
 #include <pcl/features/integral_image_normal.h>
 #include <pcl/features/pfh.h>
+#include <pcl/features/fpfh_omp.h>
 
 #define CAM_PPX 542.554688 //The ppx and ppy fields describe the pixel coordinates of the principal point (center of projection)
 #define CAM_PPY 394.199219 // The ppx and ppy fields describe the pixel coordinates of the principal point (center of projection)
@@ -532,7 +533,7 @@ pcl::PointCloud<pcl::Normal>::Ptr computeNormals(pcl::PointCloud<pcl::PointXYZ>:
     ne.compute (*normals);
 
     double t = tt.toc();
-    pcl::console::print_value( "Computing Normals takes %.3f seconds\n", t );
+    pcl::console::print_value( "Computing Normals takes %.3f\n", t );
     if(visualize){
         // visualize normals
         std::string window_name;
@@ -557,10 +558,6 @@ pcl::PointCloud<pcl::Normal>::Ptr computeNormals(pcl::PointCloud<pcl::PointXYZ>:
 pcl::PointCloud<pcl::PFHSignature125>::Ptr computePFHDescriptors(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud, pcl::PointCloud<pcl::Normal>::Ptr normals, float radius_meters = 0.05, bool print=false){
     pcl::console::TicToc tt;
     tt.tic();
-
-
-
-
     // Create the PFH estimation class, and pass the input dataset+normals to it
     pcl::PFHEstimation<pcl::PointXYZ, pcl::Normal, pcl::PFHSignature125> pfh;
     pfh.setInputCloud (cloud);
@@ -592,10 +589,38 @@ pcl::PointCloud<pcl::PFHSignature125>::Ptr computePFHDescriptors(pcl::PointCloud
     pfh.compute(*pfhs);
 
     double t = tt.toc();
-    pcl::console::print_value( "Persistent Feature Histogram takes %.3f seconds\n", t );
+    pcl::console::print_value( "Persistent Feature Histogram takes %.3f\n", t );
     return pfhs;
 
 }
+pcl::PointCloud<pcl::FPFHSignature33>::Ptr computeFPFHDescriptors(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud, pcl::PointCloud<pcl::Normal>::Ptr normals, float radius_meters = 0.05, bool print=false){
+    pcl::console::TicToc tt;
+    tt.tic();
+    // Create the PFH estimation class, and pass the input dataset+normals to it
+    pcl::FPFHEstimationOMP<pcl::PointXYZ, pcl::Normal, pcl::FPFHSignature33> fpfh;
+    fpfh.setSearchSurface(cloud);
+    fpfh.setInputCloud (cloud);
+    fpfh.setInputNormals (normals);
+    // alternatively, if cloud is of tpe PointNormal, do pfh.setInputNormals (cloud);
+
+    // Create an empty kdtree representation, and pass it to the PFH estimation object.
+    // Its content will be filled inside the object, based on the given input dataset (as no other search surface is given).
+    pcl::search::KdTree<pcl::PointXYZ>::Ptr tree (new pcl::search::KdTree<pcl::PointXYZ> ());
+    //pcl::KdTreeFLANN<pcl::PointXYZ>::Ptr tree (new pcl::KdTreeFLANN<pcl::PointXYZ> ()); -- older call for PCL 1.5-
+    fpfh.setSearchMethod (tree);
+    fpfh.setRadiusSearch (radius_meters);
+    // Output datasets
+    pcl::PointCloud<pcl::FPFHSignature33>::Ptr descrs (new pcl::PointCloud<pcl::FPFHSignature33> ());
+
+    // Compute the features
+    fpfh.compute(*descrs);
+
+    double t = tt.toc();
+    pcl::console::print_value( "Fast Persistent Feature Histogram takes %.3f\n", t );
+    return descrs;
+
+}
+
 int main(int argc, char *argv[]){
     printf("opencv version: %d.%d.%d\n",CV_VERSION_MAJOR,CV_VERSION_MINOR,CV_VERSION_REVISION);
 
@@ -623,6 +648,7 @@ int main(int argc, char *argv[]){
     //computeNormals(pcd_model_cup_filepath, true,  false, 0, 0.03);
 
     auto descriptors = computePFHDescriptors(cloud, normals);
+    auto Fdescriptors = computeFPFHDescriptors(cloud, normals);
     //compareCloud(argc, argv);
 
     return 0;
