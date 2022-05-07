@@ -17,6 +17,8 @@
 #include <opencv4/opencv2/core.hpp>
 #include <opencv4/opencv2/imgcodecs.hpp>
 
+#include <pcl/features/integral_image_normal.h>
+
 #define CAM_PPX 542.554688 //The ppx and ppy fields describe the pixel coordinates of the principal point (center of projection)
 #define CAM_PPY 394.199219 // The ppx and ppy fields describe the pixel coordinates of the principal point (center of projection)
 #define CAM_FX 737.078125 // The fx and fy fields describe the focal length of the image, as a multiple of pixel width and height
@@ -466,6 +468,9 @@ int compareCloud(int argc, char *argv[]){
     auto stop = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::seconds>(stop - start);
     cout << "Duration:" << duration.count() << " s" << endl;
+
+
+
     while (!viewer.wasStopped ())
     {
         viewer.spinOnce ();
@@ -501,19 +506,60 @@ pcl::PointCloud<pcl::PointXYZ> getFilteredCloudFromPGM(const char* filename, int
     }
     return cloud;
 }
+pcl::PointCloud<pcl::Normal>::Ptr computeNormals(const char* filename, int k_neighbours, bool visualize){
+    // load point cloud
+    pcl::PointCloud<pcl::PointXYZ>::Ptr cloud (new pcl::PointCloud<pcl::PointXYZ>);
+    pcl::io::loadPCDFile (filename, *cloud);
 
+    // estimate normals
+    pcl::PointCloud<pcl::Normal>::Ptr normals (new pcl::PointCloud<pcl::Normal>);
+/*
+    pcl::IntegralImageNormalEstimation<pcl::PointXYZ, pcl::Normal> ne;
+    ne.setNormalEstimationMethod (ne.AVERAGE_3D_GRADIENT);
+    ne.setMaxDepthChangeFactor(0.02f);
+    ne.setNormalSmoothingSize(10.0f);
+    ne.setInputCloud(cloud);
+    ne.compute(*normals);
+*/
+    pcl::NormalEstimationOMP<pcl::PointXYZ, pcl::Normal> norm_est;
+    norm_est.setKSearch (k_neighbours);
+    norm_est.setInputCloud (cloud);
+    norm_est.compute (*normals);
+    if(visualize){
+        // visualize normals
+        pcl::visualization::PCLVisualizer viewer("Normals:%s",filename);
+        viewer.setBackgroundColor (0.0, 0.0, 0.5);
+        viewer.addPointCloudNormals<pcl::PointXYZ,pcl::Normal>(cloud, normals);
+
+        while (!viewer.wasStopped ())
+        {
+            viewer.spinOnce ();
+        }
+    }
+
+    return normals;
+}
 int main(int argc, char *argv[]){
     printf("opencv version: %d.%d.%d\n",CV_VERSION_MAJOR,CV_VERSION_MINOR,CV_VERSION_REVISION);
 
-    const char* pgm_scene_filepath = "/media/rddrdhd/Data/School/SP/project_c/pgm_files/20201017_102106_950_depth.pgm"; // 1 310 976 points
-    const char* pcd_scene_filepath_downsampled = "/media/rddrdhd/Data/School/SP/project_c/pcd_files/SCENE_down_cloud.pcd"; // 807 530 points
-    const char* pcd_model_filepath_remeshed= "/media/rddrdhd/Data/School/SP/project_c/pcd_valve_resized/MODEL_valve_remesh.pcd"; //10 042 points
+   /* const char* pgm_scene_filepath = "/media/rddrdhd/Data/School/SP/project_c/pgm_files/20201017_102106_950_depth.pgm"; // 1 310 976 points
+    const char* pcd_scene_filepath_downsampled = "/media/rddrdhd/Data/School/SP/project_c/pcd_files/SCENE_down_cloud.pcd"; // 807 530 points*/
+     const char* pcd_scene_table_filepath = "/media/rddrdhd/Data/School/SP/project_c/pcd_files/SCENE_table_with_mugs.pcd"; // 1 310 976 points
+    const char* pcd_model_valve_filepath= "/media/rddrdhd/Data/School/SP/project_c/pcd_files/MODEL_valve.pcd"; //10 042 points
+    const char* pcd_model_cup_filepath= "/media/rddrdhd/Data/School/SP/project_c/pcd_files/MODEL_cup_pink.pcd"; //10 042 points
+
+    const char* pcd_model_valve_filepath_remeshed= "/media/rddrdhd/Data/School/SP/project_c/pcd_valve_resized/MODEL_valve_remesh.pcd"; //10 042 points
+
+
+
 
     // load PGM and save PCD
     //auto SCENE_cloud = getFilteredCloudFromPGM(pgm_scene_filepath, 5);
     //savePCLPointCloud(SCENE_cloud, pcd_scene_filepath_downsampled);
 
-    compareCloud(argc, argv);
+    computeNormals(pcd_model_cup_filepath, 10, true);
+
+    //compareCloud(argc, argv);
 
     return 0;
 }
