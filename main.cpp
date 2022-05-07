@@ -506,28 +506,51 @@ pcl::PointCloud<pcl::PointXYZ> getFilteredCloudFromPGM(const char* filename, int
     }
     return cloud;
 }
-pcl::PointCloud<pcl::Normal>::Ptr computeNormals(const char* filename, int k_neighbours, bool visualize){
+pcl::PointCloud<pcl::Normal>::Ptr computeNormals(const char* filename, bool visualize, bool use_neighbours = true, int k_neighbours=10,float est_radius_meters = 0.03 ){
     // load point cloud
     pcl::PointCloud<pcl::PointXYZ>::Ptr cloud (new pcl::PointCloud<pcl::PointXYZ>);
     pcl::io::loadPCDFile (filename, *cloud);
 
     // estimate normals
-    pcl::PointCloud<pcl::Normal>::Ptr normals (new pcl::PointCloud<pcl::Normal>);
+
 /*
-    pcl::IntegralImageNormalEstimation<pcl::PointXYZ, pcl::Normal> ne;
-    ne.setNormalEstimationMethod (ne.AVERAGE_3D_GRADIENT);
-    ne.setMaxDepthChangeFactor(0.02f);
-    ne.setNormalSmoothingSize(10.0f);
-    ne.setInputCloud(cloud);
-    ne.compute(*normals);
-*/
+ *
+    pcl::PointCloud<pcl::Normal>::Ptr normals (new pcl::PointCloud<pcl::Normal>);
     pcl::NormalEstimationOMP<pcl::PointXYZ, pcl::Normal> norm_est;
     norm_est.setKSearch (k_neighbours);
     norm_est.setInputCloud (cloud);
     norm_est.compute (*normals);
+    */
+    pcl::NormalEstimation<pcl::PointXYZ, pcl::Normal> ne;
+    ne.setInputCloud (cloud);
+
+    // Create an empty kdtree representation, and pass it to the normal estimation object.
+    // Its content will be filled inside the object, based on the given input dataset (as no other search surface is given).
+    pcl::search::KdTree<pcl::PointXYZ>::Ptr tree (new pcl::search::KdTree<pcl::PointXYZ> ());
+    ne.setSearchMethod (tree);
+
+    // Output datasets
+    pcl::PointCloud<pcl::Normal>::Ptr normals (new pcl::PointCloud<pcl::Normal>);
+
+    if(use_neighbours){
+        ne.setKSearch (k_neighbours);
+    } else {
+        ne.setRadiusSearch (est_radius_meters);
+    }
+    // Use all neighbors in a sphere of radius 3cm
+    //
+
+    // Compute the features
+    ne.compute (*normals);
     if(visualize){
         // visualize normals
-        pcl::visualization::PCLVisualizer viewer("Normals:%s",filename);
+        std::string window_name;
+        if(use_neighbours){
+            window_name = "Normals: - neigh:"+ to_string(k_neighbours);
+        } else {
+            window_name =  "Normals: - radius:"+to_string( est_radius_meters);
+        }
+        pcl::visualization::PCLVisualizer viewer(window_name);
         viewer.setBackgroundColor (0.0, 0.0, 0.5);
         viewer.addPointCloudNormals<pcl::PointXYZ,pcl::Normal>(cloud, normals);
 
@@ -557,7 +580,9 @@ int main(int argc, char *argv[]){
     //auto SCENE_cloud = getFilteredCloudFromPGM(pgm_scene_filepath, 5);
     //savePCLPointCloud(SCENE_cloud, pcd_scene_filepath_downsampled);
 
-    computeNormals(pcd_model_cup_filepath, 10, true);
+    //bool visualize, bool use_neighbours = true, int k_neighbours=10,float est_radius_meters = 0.03
+    computeNormals(pcd_model_cup_filepath, true,  true, 10, 0);
+    computeNormals(pcd_model_cup_filepath, true,  false, 0, 0.03);
 
     //compareCloud(argc, argv);
 
