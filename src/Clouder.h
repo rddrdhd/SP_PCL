@@ -31,16 +31,23 @@ typedef pcl::SHOT352 DescriptorType;
 
 class Clouder {
 public:
-    static void showKeyPoints(pcl::PointCloud<PointType>::Ptr cloud, pcl::PointCloud<PointType>::Ptr keypoints);
+    Clouder( const char* filepath);
+    void showKeypoints();
+    void showNormals();
+
+    unsigned long size(){return this->cloud_->size();};
 
     pcl::PointCloud<PointType>::Ptr downsampleCloud(pcl::PointCloud<PointType>::Ptr cloud, float radius_search );
+    void generateNormals();
     void generateSIFTKeypoints();
     void setCloud(pcl::PointCloud<PointType>::Ptr cloud){this->cloud_ = cloud;};
     pcl::PointCloud<PointType>::Ptr getCloud(){return this->cloud_;};
-    pcl::PointCloud<PointType>::Ptr getKeypoints(){return this->keypoints_;};
+    pcl::PointCloud<PointType>::Ptr getKeypointsXYZ(){return this->keypointsXYZ_;};
 private:
     pcl::PointCloud<PointType>::Ptr cloud_;
-    pcl::PointCloud<PointType>::Ptr keypoints_;
+    pcl::PointCloud<pcl::PointWithScale> keypoints_;
+    pcl::PointCloud<PointType>::Ptr keypointsXYZ_;
+    pcl::PointCloud<pcl::PointNormal>::Ptr normals_;
     int k_neighbours_{15};// neighbours used to find normals
     float min_scale_{0.2f};//the standard deviation of the smallest scale in the scale space
     int n_octaves_{6};//the number of octaves (ie doublings of scale) to compute

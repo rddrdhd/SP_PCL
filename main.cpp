@@ -676,23 +676,24 @@ int main(int argc, char *argv[]){
     //auto SCENE_cloud = getFilteredCloudFromPGM(pgm_scene_filepath, 5);
     //savePCLPointCloud(SCENE_cloud, pcd_scene_filepath_downsampled);
 
-    pcl::PointCloud<PointType>::Ptr cloud (new pcl::PointCloud<PointType>);
-    pcl::io::loadPCDFile (pcd_model_valve_filepath_remeshed, *cloud);
-    Clouder c;
-    c.setCloud(cloud);
+    Clouder c = Clouder(pcd_model_valve_filepath_remeshed);
+    c.generateNormals();
+    c.showNormals();
     c.generateSIFTKeypoints();
-    auto filtered_cloud = c.getKeypoints();
-    //auto filtered_cloud = downsampleCloud(cloud, 0.5f);
-    Clouder::showKeyPoints(cloud, filtered_cloud);
-    std::cout << "Total points: " << cloud->size () << "; Selected Keypoints: " << filtered_cloud->size () << std::endl;
+    c.showKeypoints();
 
-    auto normals = computeNormals(filtered_cloud, false,  true, 10);
+
+    auto filtered_cloud = c.getKeypointsXYZ();
+    //auto filtered_cloud = downsampleCloud(cloud, 0.5f);
+    std::cout << "Total points: " << c.size() << "; Selected Keypoints: " << filtered_cloud->size () << std::endl;
+
+    /*auto normals = computeNormals(filtered_cloud, false,  true, 10);
     cout << "Normals count:" << normals->size() << endl;
 
     //auto features = computePFHDescriptors(cloud, normals, 0.05);
     auto features = computeFPFHDescriptors(filtered_cloud, normals, true, 15); // bigger radius than for normals!
     cout << "Features count:" << features->size() << endl;
     //auto features = computeSHOTDescriptors(cloud, normals, 0.05); // TODO fix the local reference
-
+*/
     return 0;
 }
