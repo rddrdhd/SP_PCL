@@ -23,6 +23,8 @@
 #include <pcl/features/pfh.h>
 #include <pcl/features/fpfh_omp.h>
 
+#include <pcl/keypoints/sift_keypoint.h>
+
 #define CAM_PPX 542.554688 //The ppx and ppy fields describe the pixel coordinates of the principal point (center of projection)
 #define CAM_PPY 394.199219 // The ppx and ppy fields describe the pixel coordinates of the principal point (center of projection)
 #define CAM_FX 737.078125 // The fx and fy fields describe the focal length of the image, as a multiple of pixel width and height
@@ -176,7 +178,7 @@ double computeCloudResolution (const pcl::PointCloud<PointType>::ConstPtr &cloud
     return res;
 }
 
-pcl::PointXYZ getPointXYZ(float depth, int xv, int yv){ //https://github.com/IntelRealSense/realsense-ros/issues/1342
+PointType getPointXYZ(float depth, int xv, int yv){ //https://github.com/IntelRealSense/realsense-ros/issues/1342
     float xw, yw, zw;
     zw = depth;
     xw= (xv - CAM_PPX) * zw / CAM_FX;
@@ -185,7 +187,7 @@ pcl::PointXYZ getPointXYZ(float depth, int xv, int yv){ //https://github.com/Int
     return {xw, yw, zw};
 }
 
-void savePCLPointCloud(const pcl::PointCloud<pcl::PointXYZ>& cloud, std::string file_name){
+void savePCLPointCloud(const pcl::PointCloud<PointType>& cloud, std::string file_name){
     cout << "saving..."<<endl;
     pcl::io::savePCDFileASCII (file_name, cloud);
     std::cerr << "Saved " << cloud.size () << " data points to "<<file_name << std::endl;
@@ -479,9 +481,9 @@ int compareCloud(int argc, char *argv[]){
     return(0);
 }
 
-pcl::PointCloud<pcl::PointXYZ> getCloudFromPGM(const char* filename){
+pcl::PointCloud<PointType> getCloudFromPGM(const char* filename){
     Mat img = imread(filename, -1);
-    pcl::PointCloud<pcl::PointXYZ> cloud((PGM_W), PGM_H);
+    pcl::PointCloud<PointType> cloud((PGM_W), PGM_H);
     cloud.resize(PGM_W*PGM_H);
     float depth;
     for(int y = 0; y<(PGM_W/1.5);y++){ // reading by 16b, but OpenCV img stores in 8b
@@ -493,9 +495,9 @@ pcl::PointCloud<pcl::PointXYZ> getCloudFromPGM(const char* filename){
     return cloud;
 }
 
-pcl::PointCloud<pcl::PointXYZ> getFilteredCloudFromPGM(const char* filename, int scale){
+pcl::PointCloud<PointType> getFilteredCloudFromPGM(const char* filename, int scale){
     Mat img = imread(filename, -1);
-    pcl::PointCloud<pcl::PointXYZ> cloud((PGM_W), PGM_H);
+    pcl::PointCloud<PointType> cloud((PGM_W), PGM_H);
     cloud.resize((PGM_W*PGM_H));
     float depth;
     for(int y = 0; y<(PGM_W/1.5);y+=scale){ // reading by 16b, but OpenCV img stores in 8b
@@ -508,16 +510,16 @@ pcl::PointCloud<pcl::PointXYZ> getFilteredCloudFromPGM(const char* filename, int
     return cloud;
 }
 
-pcl::PointCloud<pcl::Normal>::Ptr computeNormals(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud, bool visualize, bool use_neighbours = true, int k_neighbours=10,float est_radius_meters = 0.03 ){
+pcl::PointCloud<pcl::Normal>::Ptr computeNormals(pcl::PointCloud<PointType>::Ptr cloud, bool visualize, bool use_neighbours = true, int k_neighbours=10,float est_radius_meters = 0.03 ){
     pcl::console::TicToc tt;
     tt.tic();
     // estimate normals
-    pcl::NormalEstimationOMP<pcl::PointXYZ, pcl::Normal> ne;
+    pcl::NormalEstimationOMP<PointType, pcl::Normal> ne;
     ne.setInputCloud (cloud);
 
     // Create an empty kdtree representation, and pass it to the normal estimation object.
     // Its content will be filled inside the object, based on the given input dataset (as no other search surface is given).
-    pcl::search::KdTree<pcl::PointXYZ>::Ptr tree (new pcl::search::KdTree<pcl::PointXYZ> ());
+    pcl::search::KdTree<PointType>::Ptr tree (new pcl::search::KdTree<PointType> ());
     ne.setSearchMethod (tree);
 
     // Output datasets
@@ -545,7 +547,7 @@ pcl::PointCloud<pcl::Normal>::Ptr computeNormals(pcl::PointCloud<pcl::PointXYZ>:
         }
         pcl::visualization::PCLVisualizer viewer(window_name);
         viewer.setBackgroundColor (0.0, 0.0, 0.5);
-        viewer.addPointCloudNormals<pcl::PointXYZ,pcl::Normal>(cloud, normals, 1, 5); //  level (opak hustoty) and scale for valve
+        viewer.addPointCloudNormals<PointType,pcl::Normal>(cloud, normals, 1, 5); //  level (opak hustoty) and scale for valve
 
         while (!viewer.wasStopped ())
         {
@@ -556,19 +558,19 @@ pcl::PointCloud<pcl::Normal>::Ptr computeNormals(pcl::PointCloud<pcl::PointXYZ>:
     return normals;
 }
 
-pcl::PointCloud<pcl::PFHSignature125>::Ptr computePFHDescriptors(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud, pcl::PointCloud<pcl::Normal>::Ptr normals, float radius_meters = 0.05, bool print=false){
+pcl::PointCloud<pcl::PFHSignature125>::Ptr computePFHDescriptors(pcl::PointCloud<PointType>::Ptr cloud, pcl::PointCloud<pcl::Normal>::Ptr normals, float radius_meters = 0.05, bool print=false){
     pcl::console::TicToc tt;
     tt.tic();
     // Create the PFH estimation class, and pass the input dataset+normals to it
-    pcl::PFHEstimation<pcl::PointXYZ, pcl::Normal, pcl::PFHSignature125> pfh;
+    pcl::PFHEstimation<PointType, pcl::Normal, pcl::PFHSignature125> pfh;
     pfh.setInputCloud (cloud);
     pfh.setInputNormals (normals);
     // alternatively, if cloud is of tpe PointNormal, do pfh.setInputNormals (cloud);
 
     // Create an empty kdtree representation, and pass it to the PFH estimation object.
     // Its content will be filled inside the object, based on the given input dataset (as no other search surface is given).
-    pcl::search::KdTree<pcl::PointXYZ>::Ptr tree (new pcl::search::KdTree<pcl::PointXYZ> ());
-    //pcl::KdTreeFLANN<pcl::PointXYZ>::Ptr tree (new pcl::KdTreeFLANN<pcl::PointXYZ> ()); -- older call for PCL 1.5-
+    pcl::search::KdTree<PointType>::Ptr tree (new pcl::search::KdTree<PointType> ());
+    //pcl::KdTreeFLANN<PointType>::Ptr tree (new pcl::KdTreeFLANN<PointType> ()); -- older call for PCL 1.5-
     pfh.setSearchMethod (tree);
 
     // Output datasets
@@ -597,8 +599,10 @@ pcl::PointCloud<pcl::PFHSignature125>::Ptr computePFHDescriptors(pcl::PointCloud
 
 }
 pcl::PointCloud<pcl::FPFHSignature33>::Ptr computeFPFHDescriptors(
-        pcl::PointCloud<pcl::PointXYZ>::Ptr cloud,
+        pcl::PointCloud<PointType>::Ptr cloud,
         pcl::PointCloud<pcl::Normal>::Ptr normals,
+        bool using_neigh = true,
+        int k_neighbours = 15,
         float radius_meters = 0.05,
         bool print_all = false ){
 
@@ -607,23 +611,26 @@ pcl::PointCloud<pcl::FPFHSignature33>::Ptr computeFPFHDescriptors(
     // Create the PFH estimation class, and pass the input dataset+normals to it
 
     // Create the FPFH estimation class, and pass the input dataset+normals to it
-    pcl::FPFHEstimation<pcl::PointXYZ, pcl::Normal, pcl::FPFHSignature33> fpfh;
+    pcl::FPFHEstimation<PointType, pcl::Normal, pcl::FPFHSignature33> fpfh;
     fpfh.setInputCloud (cloud);
     fpfh.setInputNormals (normals);
     // alternatively, if cloud is of tpe PointNormal, do fpfh.setInputNormals (cloud);
 
     // Create an empty kdtree representation, and pass it to the FPFH estimation object.
     // Its content will be filled inside the object, based on the given input dataset (as no other search surface is given).
-    pcl::search::KdTree<pcl::PointXYZ>::Ptr tree (new pcl::search::KdTree<pcl::PointXYZ>);
+    pcl::search::KdTree<PointType>::Ptr tree (new pcl::search::KdTree<PointType>);
 
     fpfh.setSearchMethod (tree);
 
     // Output datasets
     pcl::PointCloud<pcl::FPFHSignature33>::Ptr features (new pcl::PointCloud<pcl::FPFHSignature33> ());
 
-    // Use all neighbors in a sphere of radius 5cm
     // IMPORTANT: the radius used here has to be larger than the radius used to estimate the surface normals!!!
-    fpfh.setRadiusSearch (radius_meters);
+   if(using_neigh){
+       fpfh.setKSearch(k_neighbours);
+   } else {
+       fpfh.setRadiusSearch (radius_meters);
+   }
 
     // Compute the features
     fpfh.compute (*features);
@@ -642,13 +649,13 @@ pcl::PointCloud<pcl::FPFHSignature33>::Ptr computeFPFHDescriptors(
     return features;
 }
 pcl::PointCloud<pcl::SHOT352>::Ptr computeSHOTDescriptors(
-        pcl::PointCloud<pcl::PointXYZ>::Ptr cloud,
+        pcl::PointCloud<PointType>::Ptr cloud,
         pcl::PointCloud<pcl::Normal>::Ptr normals,
         float radius_meters = 0.05 ){
     pcl::console::TicToc tt;
     tt.tic();
     // Create the PFH estimation class, and pass the input dataset+normals to it
-    pcl::SHOTEstimationOMP<pcl::PointXYZ, pcl::Normal, pcl::SHOT352> shot;
+    pcl::SHOTEstimationOMP<PointType, pcl::Normal, pcl::SHOT352> shot;
     shot.setInputCloud (cloud);
     shot.setInputNormals (normals);
     // alternatively, if cloud is of tpe PointNormal, do pfh.setInputNormals (cloud);
@@ -669,7 +676,88 @@ pcl::PointCloud<pcl::SHOT352>::Ptr computeSHOTDescriptors(
     cout << descrs->points[0] << endl;
     return descrs;
 }
+pcl::PointCloud<PointType>::Ptr getSIFTKeyPoints(pcl::PointCloud<PointType>::Ptr cloud_xyz){
 
+    // Parameters for sift computation
+    const float min_scale = 0.2f; //the standard deviation of the smallest scale in the scale space
+    const int n_octaves = 6;//the number of octaves (ie doublings of scale) to compute
+    const int n_scales_per_octave = 4;//the number of scales to compute within each octave
+
+    const float min_contrast = 0.005f;//the minimum contrast required for detection
+
+    // Estimate the normals of the cloud_xyz
+    pcl::NormalEstimation<PointType, pcl::PointNormal> ne;
+    pcl::PointCloud<pcl::PointNormal>::Ptr cloud_normals (new pcl::PointCloud<pcl::PointNormal>);
+    pcl::search::KdTree<PointType>::Ptr tree_n(new pcl::search::KdTree<PointType>());
+
+    ne.setInputCloud(cloud_xyz);
+    ne.setSearchMethod(tree_n);
+    //ne.setRadiusSearch(0.2);
+    ne.setKSearch(15);
+    ne.compute(*cloud_normals);
+
+    // Copy the xyz info from cloud_xyz and add it to cloud_normals as the xyz field in PointNormals estimation is zero
+    for(size_t i = 0; i<cloud_normals->points.size(); ++i)
+    {
+        cloud_normals->points[i].x = cloud_xyz->points[i].x;
+        cloud_normals->points[i].y = cloud_xyz->points[i].y;
+        cloud_normals->points[i].z = cloud_xyz->points[i].z;
+    }
+    pcl::console::TicToc tt;
+    tt.tic();
+    // Estimate the sift interest points using normals values from xyz as the Intensity variants
+    pcl::SIFTKeypoint<pcl::PointNormal, pcl::PointWithScale> sift;
+    pcl::PointCloud<pcl::PointWithScale> result;
+    pcl::search::KdTree<pcl::PointNormal>::Ptr tree(new pcl::search::KdTree<pcl::PointNormal> ());
+    sift.setSearchMethod(tree);
+    sift.setMinimumContrast(min_contrast);
+    sift.setScales(min_scale, n_octaves, n_scales_per_octave);
+
+    sift.setInputCloud(cloud_normals);
+    sift.compute(result);
+
+    double t = tt.toc();
+    pcl::console::print_value( "Scale-invariant feature transform takes %.3f\n[0]:\t", t );
+
+    std::cout << "No of SIFT points in the result are " << result.points.size () << std::endl;
+
+
+    // Copying the pointwithscale to pointxyz so as visualize the cloud
+    pcl::PointCloud<PointType>::Ptr cloud_temp (new pcl::PointCloud<PointType>);
+    copyPointCloud(result, *cloud_temp);
+    std::cout << "SIFT points in the cloud_temp are " << cloud_temp->points.size () << std::endl;
+
+
+    // Visualization of keypoints along with the original cloud
+    pcl::visualization::PCLVisualizer viewer("PCL Viewer");
+    pcl::visualization::PointCloudColorHandlerCustom<PointType> keypoints_color_handler (cloud_temp, 0, 255, 0);
+    pcl::visualization::PointCloudColorHandlerCustom<PointType> cloud_color_handler (cloud_xyz, 255, 0, 0);
+    viewer.setBackgroundColor( 0.0, 0.0, 0.0 );
+    viewer.addPointCloud(cloud_xyz, cloud_color_handler, "cloud");
+    viewer.addPointCloud(cloud_temp, keypoints_color_handler, "keypoints");
+    viewer.setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 7, "keypoints");
+
+    while(!viewer.wasStopped ())
+    {
+        viewer.spinOnce ();
+    }
+
+
+    return cloud_temp;
+}
+
+
+pcl::PointCloud<PointType>::Ptr downsampleCloud(
+        pcl::PointCloud<PointType>::Ptr cloud, float radius_search ){
+    pcl::PointCloud<PointType>::Ptr result (new pcl::PointCloud<PointType> ());
+
+    pcl::UniformSampling<PointType> uniform_sampling;
+    uniform_sampling.setInputCloud (cloud);
+    uniform_sampling.setRadiusSearch (radius_search);
+    uniform_sampling.filter (*result);
+
+    return result;
+}
 int main(int argc, char *argv[]){
     printf("opencv version: %d.%d.%d\n",CV_VERSION_MAJOR,CV_VERSION_MINOR,CV_VERSION_REVISION);
     //compareCloud(argc, argv);
@@ -687,17 +775,24 @@ int main(int argc, char *argv[]){
 
 
 
-    pcl::PointCloud<pcl::PointXYZ>::Ptr cloud (new pcl::PointCloud<pcl::PointXYZ>);
+    pcl::PointCloud<PointType>::Ptr cloud (new pcl::PointCloud<PointType>);
     pcl::io::loadPCDFile (pcd_model_valve_filepath_remeshed, *cloud);
 
-    auto normals = computeNormals(cloud, true,  true, 10);
+
+    auto filtered_cloud = getSIFTKeyPoints(cloud); // TODO
+    //auto filtered_cloud = downsampleCloud(cloud, 0.15f);
+
+    std::cout << "Total points: " << cloud->size () << "; Selected Keypoints: " << filtered_cloud->size () << std::endl;
+
+
+    auto normals = computeNormals(filtered_cloud, true,  true, 10);
     cout << "Normals count:" << normals->size() << endl;
 
+
     //auto features = computePFHDescriptors(cloud, normals, 0.05);
-    //auto features = computeFPFHDescriptors(cloud, normals, 0.05); // bigger radius than for normals!
+    auto features = computeFPFHDescriptors(filtered_cloud, normals, true, 15); // bigger radius than for normals!
+    cout << "Features count:" << features->size() << endl;
     //auto features = computeSHOTDescriptors(cloud, normals, 0.05); // TODO fix the local reference
-
-
 
     return 0;
 }
