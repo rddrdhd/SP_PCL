@@ -1,19 +1,4 @@
-#include <pcl/io/pcd_io.h>
-#include <pcl/correspondence.h>
-#include <pcl/point_types.h>
-#include <pcl/point_cloud.h>
-#include <pcl/surface/mls.h>
-#include <pcl/features/normal_3d_omp.h>
-#include <pcl/features/shot_omp.h>
-#include <pcl/features/board.h>
-#include <pcl/filters/uniform_sampling.h>
-#include <pcl/recognition/cg/hough_3d.h>
-#include <pcl/recognition/cg/geometric_consistency.h>
-#include <pcl/visualization/pcl_visualizer.h>
-#include <pcl/kdtree/kdtree_flann.h>
-#include <pcl/kdtree/impl/kdtree_flann.hpp>
-#include <pcl/common/transforms.h>
-#include <pcl/console/parse.h>
+
 #include <opencv4/opencv2/core.hpp>
 #include <opencv4/opencv2/imgcodecs.hpp>
 
@@ -24,6 +9,7 @@
 #include <pcl/features/fpfh_omp.h>
 
 #include <pcl/keypoints/sift_keypoint.h>
+#include "src/Clouder.h"
 
 #define CAM_PPX 542.554688 //The ppx and ppy fields describe the pixel coordinates of the principal point (center of projection)
 #define CAM_PPY 394.199219 // The ppx and ppy fields describe the pixel coordinates of the principal point (center of projection)
@@ -37,10 +23,7 @@
 #define MODEL_SCALE 0.8
 #define PGM_MAX_D 65535
 
-typedef pcl::PointXYZRGBA PointType;
-typedef pcl::Normal NormalType;
-typedef pcl::ReferenceFrame RFType;
-typedef pcl::SHOT352 DescriptorType;
+
 
 
 std::string model_filename_;
@@ -676,86 +659,8 @@ pcl::PointCloud<pcl::SHOT352>::Ptr computeSHOTDescriptors(
     cout << descrs->points[0] << endl;
     return descrs;
 }
-pcl::PointCloud<PointType>::Ptr getSIFTKeyPoints(
-        pcl::PointCloud<PointType>::Ptr cloud_xyz,
-        float min_scale = 0.2f,//the standard deviation of the smallest scale in the scale space
-        int n_octaves = 6,//the number of octaves (ie doublings of scale) to compute
-        int n_scales_per_octave = 4,  //the number of scales to compute within each octave
-        float min_contrast = 0.005f, //the minimum contrast required for detection
-        int k_neighbours = 15  // neighbours used to find normals
-                ){
-    // Estimate the normals of the cloud_xyz
-    pcl::NormalEstimation<PointType, pcl::PointNormal> ne;
-    pcl::PointCloud<pcl::PointNormal>::Ptr cloud_normals (new pcl::PointCloud<pcl::PointNormal>);
-    pcl::search::KdTree<PointType>::Ptr tree_n(new pcl::search::KdTree<PointType>());
-
-    ne.setInputCloud(cloud_xyz);
-    ne.setSearchMethod(tree_n);
-    //ne.setRadiusSearch(0.2);
-    ne.setKSearch(k_neighbours);
-    ne.compute(*cloud_normals);
-
-    // Copy the xyz info from cloud_xyz and add it to cloud_normals as the xyz field in PointNormals estimation is zero
-    for(size_t i = 0; i<cloud_normals->points.size(); ++i)
-    {
-        cloud_normals->points[i].x = cloud_xyz->points[i].x;
-        cloud_normals->points[i].y = cloud_xyz->points[i].y;
-        cloud_normals->points[i].z = cloud_xyz->points[i].z;
-    }
-    pcl::console::TicToc tt;
-    tt.tic();
-    // Estimate the sift interest points using normals values from xyz as the Intensity variants
-    pcl::SIFTKeypoint<pcl::PointNormal, pcl::PointWithScale> sift;
-    pcl::PointCloud<pcl::PointWithScale> result;
-    pcl::search::KdTree<pcl::PointNormal>::Ptr tree(new pcl::search::KdTree<pcl::PointNormal> ());
-    sift.setSearchMethod(tree);
-    sift.setMinimumContrast(min_contrast);
-    sift.setScales(min_scale, n_octaves, n_scales_per_octave);
-
-    sift.setInputCloud(cloud_normals);
-    sift.compute(result);
-
-    double t = tt.toc();
-    pcl::console::print_value( "Scale-invariant feature transform takes %.3f\n[0]:\t", t );
-
-    std::cout << "No of SIFT points in the result are " << result.points.size () << std::endl;
 
 
-    // Copying the pointwithscale to pointxyz so as visualize the cloud
-    pcl::PointCloud<PointType>::Ptr cloud_temp (new pcl::PointCloud<PointType>);
-    copyPointCloud(result, *cloud_temp);
-    std::cout << "SIFT points in the cloud_temp are " << cloud_temp->points.size () << std::endl;
-
-    return cloud_temp;
-}
-
-
-pcl::PointCloud<PointType>::Ptr downsampleCloud(pcl::PointCloud<PointType>::Ptr cloud, float radius_search ){
-
-    pcl::PointCloud<PointType>::Ptr result (new pcl::PointCloud<PointType> ());
-
-    pcl::UniformSampling<PointType> uniform_sampling;
-    uniform_sampling.setInputCloud (cloud);
-    uniform_sampling.setRadiusSearch (radius_search);
-    uniform_sampling.filter (*result);
-
-    return result;
-}
-void showKeyPoints(pcl::PointCloud<PointType>::Ptr cloud, pcl::PointCloud<PointType>::Ptr keypoints){
-    // Visualization of keypoints along with the original cloud
-    pcl::visualization::PCLVisualizer viewer("PCL Viewer");
-    pcl::visualization::PointCloudColorHandlerCustom<PointType> keypoints_color_handler (keypoints, 0, 255, 0);
-    pcl::visualization::PointCloudColorHandlerCustom<PointType> cloud_color_handler (cloud, 255, 0, 0);
-    viewer.setBackgroundColor( 0.0, 0.0, 0.0 );
-    viewer.addPointCloud(cloud, cloud_color_handler, "cloud");
-    viewer.addPointCloud(keypoints, keypoints_color_handler, "keypoints");
-    viewer.setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 7, "keypoints");
-
-    while(!viewer.wasStopped ())
-    {
-        viewer.spinOnce ();
-    }
-}
 int main(int argc, char *argv[]){
     printf("opencv version: %d.%d.%d\n",CV_VERSION_MAJOR,CV_VERSION_MINOR,CV_VERSION_REVISION);
     //compareCloud(argc, argv);
@@ -773,10 +678,12 @@ int main(int argc, char *argv[]){
 
     pcl::PointCloud<PointType>::Ptr cloud (new pcl::PointCloud<PointType>);
     pcl::io::loadPCDFile (pcd_model_valve_filepath_remeshed, *cloud);
-
-    auto filtered_cloud = getSIFTKeyPoints(cloud);
+    Clouder c;
+    c.setCloud(cloud);
+    c.generateSIFTKeypoints();
+    auto filtered_cloud = c.getKeypoints();
     //auto filtered_cloud = downsampleCloud(cloud, 0.5f);
-    showKeyPoints(cloud, filtered_cloud);
+    Clouder::showKeyPoints(cloud, filtered_cloud);
     std::cout << "Total points: " << cloud->size () << "; Selected Keypoints: " << filtered_cloud->size () << std::endl;
 
     auto normals = computeNormals(filtered_cloud, false,  true, 10);
