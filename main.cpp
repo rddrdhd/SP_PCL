@@ -493,54 +493,6 @@ pcl::PointCloud<PointType> getFilteredCloudFromPGM(const char* filename, int sca
     return cloud;
 }
 
-pcl::PointCloud<pcl::Normal>::Ptr computeNormals(pcl::PointCloud<PointType>::Ptr cloud, bool visualize, bool use_neighbours = true, int k_neighbours=10,float est_radius_meters = 0.03 ){
-    pcl::console::TicToc tt;
-    tt.tic();
-    // estimate normals
-    pcl::NormalEstimationOMP<PointType, pcl::Normal> ne;
-    ne.setInputCloud (cloud);
-
-    // Create an empty kdtree representation, and pass it to the normal estimation object.
-    // Its content will be filled inside the object, based on the given input dataset (as no other search surface is given).
-    pcl::search::KdTree<PointType>::Ptr tree (new pcl::search::KdTree<PointType> ());
-    ne.setSearchMethod (tree);
-
-    // Output datasets
-    pcl::PointCloud<pcl::Normal>::Ptr normals (new pcl::PointCloud<pcl::Normal>);
-
-    if(use_neighbours){
-        ne.setKSearch (k_neighbours);
-    } else {
-        ne.setRadiusSearch (est_radius_meters);
-    }
-
-    // Compute the features
-    ne.compute (*normals);
-
-    double t = tt.toc();
-    pcl::console::print_value( "Computing normals takes %.3f\n[0]:\t", t );
-    cout<<normals->points[0]<<endl;
-    if(visualize){
-        // visualize normals
-        std::string window_name;
-        if(use_neighbours){
-            window_name = "Normals, k_neighbours = "+ to_string(k_neighbours);
-        } else {
-            window_name =  "Normals, radius = "+ to_string( est_radius_meters);
-        }
-        pcl::visualization::PCLVisualizer viewer(window_name);
-        viewer.setBackgroundColor (0.0, 0.0, 0.5);
-        viewer.addPointCloudNormals<PointType,pcl::Normal>(cloud, normals, 1, 5); //  level (opak hustoty) and scale for valve
-
-        while (!viewer.wasStopped ())
-        {
-            viewer.spinOnce ();
-        }
-    }
-
-    return normals;
-}
-
 pcl::PointCloud<pcl::PFHSignature125>::Ptr computePFHDescriptors(pcl::PointCloud<PointType>::Ptr cloud, pcl::PointCloud<pcl::Normal>::Ptr normals, float radius_meters = 0.05, bool print=false){
     pcl::console::TicToc tt;
     tt.tic();
@@ -580,56 +532,6 @@ pcl::PointCloud<pcl::PFHSignature125>::Ptr computePFHDescriptors(pcl::PointCloud
     cout << pfhs->points[0] << endl;
     return pfhs;
 
-}
-pcl::PointCloud<pcl::FPFHSignature33>::Ptr computeFPFHDescriptors(
-        pcl::PointCloud<PointType>::Ptr cloud,
-        pcl::PointCloud<pcl::Normal>::Ptr normals,
-        bool using_neigh = true,
-        int k_neighbours = 15,
-        float radius_meters = 0.05,
-        bool print_all = false ){
-
-     pcl::console::TicToc tt;
-    tt.tic();
-    // Create the PFH estimation class, and pass the input dataset+normals to it
-
-    // Create the FPFH estimation class, and pass the input dataset+normals to it
-    pcl::FPFHEstimation<PointType, pcl::Normal, pcl::FPFHSignature33> fpfh;
-    fpfh.setInputCloud (cloud);
-    fpfh.setInputNormals (normals);
-    // alternatively, if cloud is of tpe PointNormal, do fpfh.setInputNormals (cloud);
-
-    // Create an empty kdtree representation, and pass it to the FPFH estimation object.
-    // Its content will be filled inside the object, based on the given input dataset (as no other search surface is given).
-    pcl::search::KdTree<PointType>::Ptr tree (new pcl::search::KdTree<PointType>);
-
-    fpfh.setSearchMethod (tree);
-
-    // Output datasets
-    pcl::PointCloud<pcl::FPFHSignature33>::Ptr features (new pcl::PointCloud<pcl::FPFHSignature33> ());
-
-    // IMPORTANT: the radius used here has to be larger than the radius used to estimate the surface normals!!!
-   if(using_neigh){
-       fpfh.setKSearch(k_neighbours);
-   } else {
-       fpfh.setRadiusSearch (radius_meters);
-   }
-
-    // Compute the features
-    fpfh.compute (*features);
-
-    double t = tt.toc();
-    pcl::console::print_value( "Fast Persistent Feature Histogram takes %.3f\n[0]:\t", t );
-    cout<<features->points[0]<<endl;
-    if(print_all){
-        for (int i = 1; i < features->size(); i++){
-            if(isFinite(features->points[i])){
-
-                cout <<"["<<i<<"]:"<<"\t"<< features->points[i] << endl;
-            }
-        }
-    }
-    return features;
 }
 pcl::PointCloud<pcl::SHOT352>::Ptr computeSHOTDescriptors(
         pcl::PointCloud<PointType>::Ptr cloud,
@@ -677,23 +579,15 @@ int main(int argc, char *argv[]){
     //savePCLPointCloud(SCENE_cloud, pcd_scene_filepath_downsampled);
 
     Clouder c = Clouder(pcd_model_valve_filepath_remeshed);
-    c.generateNormals();
+    c.computeNormals();
     c.showNormals();
+
     c.generateSIFTKeypoints();
     c.showKeypoints();
 
+    c.generateDownsampledCloud();
 
-    auto filtered_cloud = c.getKeypointsXYZ();
-    //auto filtered_cloud = downsampleCloud(cloud, 0.5f);
-    std::cout << "Total points: " << c.size() << "; Selected Keypoints: " << filtered_cloud->size () << std::endl;
+    c.generateFPFHDescriptors();
 
-    /*auto normals = computeNormals(filtered_cloud, false,  true, 10);
-    cout << "Normals count:" << normals->size() << endl;
-
-    //auto features = computePFHDescriptors(cloud, normals, 0.05);
-    auto features = computeFPFHDescriptors(filtered_cloud, normals, true, 15); // bigger radius than for normals!
-    cout << "Features count:" << features->size() << endl;
-    //auto features = computeSHOTDescriptors(cloud, normals, 0.05); // TODO fix the local reference
-*/
     return 0;
 }
