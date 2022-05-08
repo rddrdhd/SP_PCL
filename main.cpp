@@ -1,14 +1,5 @@
-
 #include <opencv4/opencv2/core.hpp>
 #include <opencv4/opencv2/imgcodecs.hpp>
-
-
-#include <pcl/console/time.h>
-#include <pcl/features/integral_image_normal.h>
-#include <pcl/features/pfh.h>
-#include <pcl/features/fpfh_omp.h>
-
-#include <pcl/keypoints/sift_keypoint.h>
 #include "src/Clouder.h"
 
 #define CAM_PPX 542.554688 //The ppx and ppy fields describe the pixel coordinates of the principal point (center of projection)
@@ -22,9 +13,6 @@
 #define PGM_H 768
 #define MODEL_SCALE 0.8
 #define PGM_MAX_D 65535
-
-
-
 
 std::string model_filename_;
 std::string scene_filename_;
@@ -42,8 +30,8 @@ float cg_size_ (0.01f);
 float cg_thresh_ (5.0f);
 using namespace cv;
 using namespace std;
-void
-showHelp (char *filename)
+
+void showHelp (char *filename)
 {
     std::cout << std::endl;
     std::cout << "***************************************************************************" << std::endl;
@@ -493,76 +481,6 @@ pcl::PointCloud<PointType> getFilteredCloudFromPGM(const char* filename, int sca
     return cloud;
 }
 
-pcl::PointCloud<pcl::PFHSignature125>::Ptr computePFHDescriptors(pcl::PointCloud<PointType>::Ptr cloud, pcl::PointCloud<pcl::Normal>::Ptr normals, float radius_meters = 0.05, bool print=false){
-    pcl::console::TicToc tt;
-    tt.tic();
-    // Create the PFH estimation class, and pass the input dataset+normals to it
-    pcl::PFHEstimation<PointType, pcl::Normal, pcl::PFHSignature125> pfh;
-    pfh.setInputCloud (cloud);
-    pfh.setInputNormals (normals);
-    // alternatively, if cloud is of tpe PointNormal, do pfh.setInputNormals (cloud);
-
-    // Create an empty kdtree representation, and pass it to the PFH estimation object.
-    // Its content will be filled inside the object, based on the given input dataset (as no other search surface is given).
-    pcl::search::KdTree<PointType>::Ptr tree (new pcl::search::KdTree<PointType> ());
-    //pcl::KdTreeFLANN<PointType>::Ptr tree (new pcl::KdTreeFLANN<PointType> ()); -- older call for PCL 1.5-
-    pfh.setSearchMethod (tree);
-
-    // Output datasets
-    pcl::PointCloud<pcl::PFHSignature125>::Ptr pfhs (new pcl::PointCloud<pcl::PFHSignature125> ());
-
-    // Use all neighbors in a sphere of radius 5cm
-    // IMPORTANT: the radius used here has to be larger than the radius used to estimate the surface normals!!!
-    pfh.setRadiusSearch (radius_meters);
-
-    // check normals
-    for (int i = 0; i < normals->size(); i++)
-    {
-        if (!pcl::isFinite<pcl::Normal>((*normals)[i]))
-        {
-            PCL_WARN("normals[%d] is not finite\n", i);
-        }
-    }
-    // Compute the features
-    pfh.compute(*pfhs);
-
-    double t = tt.toc();
-    pcl::console::print_value( "Persistent Feature Histogram takes %.3f\n[0]:\t", t );
-
-    cout << pfhs->points[0] << endl;
-    return pfhs;
-
-}
-pcl::PointCloud<pcl::SHOT352>::Ptr computeSHOTDescriptors(
-        pcl::PointCloud<PointType>::Ptr cloud,
-        pcl::PointCloud<pcl::Normal>::Ptr normals,
-        float radius_meters = 0.05 ){
-    pcl::console::TicToc tt;
-    tt.tic();
-    // Create the PFH estimation class, and pass the input dataset+normals to it
-    pcl::SHOTEstimationOMP<PointType, pcl::Normal, pcl::SHOT352> shot;
-    shot.setInputCloud (cloud);
-    shot.setInputNormals (normals);
-    // alternatively, if cloud is of tpe PointNormal, do pfh.setInputNormals (cloud);
-
-    // Create an empty kdtree representation, and pass it to the PFH estimation object.
-    // Its content will be filled inside the object, based on the given input dataset (as no other search surface is given).
-
-    shot.setRadiusSearch (radius_meters);
-    // Output datasets
-    pcl::PointCloud<pcl::SHOT352>::Ptr descrs (new pcl::PointCloud<pcl::SHOT352> ());
-
-    // Compute the features
-    shot.compute(*descrs);
-
-    double t = tt.toc();
-    pcl::console::print_value( "Signature of Histograms of Orientation takes %.3f\n", t );
-
-    cout << descrs->points[0] << endl;
-    return descrs;
-}
-
-
 int main(int argc, char *argv[]){
     printf("opencv version: %d.%d.%d\n",CV_VERSION_MAJOR,CV_VERSION_MINOR,CV_VERSION_REVISION);
     //compareCloud(argc, argv);
@@ -579,15 +497,15 @@ int main(int argc, char *argv[]){
     //savePCLPointCloud(SCENE_cloud, pcd_scene_filepath_downsampled);
 
     Clouder c = Clouder(pcd_model_valve_filepath_remeshed);
-    c.computeNormals();
-    c.showNormals();
+    c.computeNormals(); // TODO pcl::Normal vs. pcl::PointNormal
+    //c.showNormals();
 
+    //c.generateDownsampledCloud();
     c.generateSIFTKeypoints();
-    c.showKeypoints();
+    //c.showSHOTKeypoints();
 
-    c.generateDownsampledCloud();
-
-    c.generateFPFHDescriptors();
-
+    //c.computePFHDescriptors(); // TODO returning NULL, fix... idk what
+    c.computeFPFHDescriptors();
+    //c.computeSHOTDescriptors(); // TODO returning nan, fix local reference frames!
     return 0;
 }
