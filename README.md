@@ -11,10 +11,8 @@ Download PCL: https://pointclouds.org/downloads/
 1. Go to the `/build` folder.
 2. `cmake ..`
 3. `make`
-4. `./main.cpp model.pcd scene.pcd`
+4. `./main.cpp`
 
-
-To display help, run `./main.cpp -h`
 ### Data
 In `/pcd_files` directory you can find models with `MODEL_cup_` prefix (mug), and scenes with `SCENE_table_` prefix (table with mugs).
 
