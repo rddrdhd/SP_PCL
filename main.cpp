@@ -676,15 +676,14 @@ pcl::PointCloud<pcl::SHOT352>::Ptr computeSHOTDescriptors(
     cout << descrs->points[0] << endl;
     return descrs;
 }
-pcl::PointCloud<PointType>::Ptr getSIFTKeyPoints(pcl::PointCloud<PointType>::Ptr cloud_xyz){
-
-    // Parameters for sift computation
-    const float min_scale = 0.2f; //the standard deviation of the smallest scale in the scale space
-    const int n_octaves = 6;//the number of octaves (ie doublings of scale) to compute
-    const int n_scales_per_octave = 4;//the number of scales to compute within each octave
-
-    const float min_contrast = 0.005f;//the minimum contrast required for detection
-
+pcl::PointCloud<PointType>::Ptr getSIFTKeyPoints(
+        pcl::PointCloud<PointType>::Ptr cloud_xyz,
+        float min_scale = 0.2f,//the standard deviation of the smallest scale in the scale space
+        int n_octaves = 6,//the number of octaves (ie doublings of scale) to compute
+        int n_scales_per_octave = 4,  //the number of scales to compute within each octave
+        float min_contrast = 0.005f, //the minimum contrast required for detection
+        int k_neighbours = 15  // neighbours used to find normals
+                ){
     // Estimate the normals of the cloud_xyz
     pcl::NormalEstimation<PointType, pcl::PointNormal> ne;
     pcl::PointCloud<pcl::PointNormal>::Ptr cloud_normals (new pcl::PointCloud<pcl::PointNormal>);
@@ -693,7 +692,7 @@ pcl::PointCloud<PointType>::Ptr getSIFTKeyPoints(pcl::PointCloud<PointType>::Ptr
     ne.setInputCloud(cloud_xyz);
     ne.setSearchMethod(tree_n);
     //ne.setRadiusSearch(0.2);
-    ne.setKSearch(15);
+    ne.setKSearch(k_neighbours);
     ne.compute(*cloud_normals);
 
     // Copy the xyz info from cloud_xyz and add it to cloud_normals as the xyz field in PointNormals estimation is zero
@@ -727,28 +726,12 @@ pcl::PointCloud<PointType>::Ptr getSIFTKeyPoints(pcl::PointCloud<PointType>::Ptr
     copyPointCloud(result, *cloud_temp);
     std::cout << "SIFT points in the cloud_temp are " << cloud_temp->points.size () << std::endl;
 
-
-    // Visualization of keypoints along with the original cloud
-    pcl::visualization::PCLVisualizer viewer("PCL Viewer");
-    pcl::visualization::PointCloudColorHandlerCustom<PointType> keypoints_color_handler (cloud_temp, 0, 255, 0);
-    pcl::visualization::PointCloudColorHandlerCustom<PointType> cloud_color_handler (cloud_xyz, 255, 0, 0);
-    viewer.setBackgroundColor( 0.0, 0.0, 0.0 );
-    viewer.addPointCloud(cloud_xyz, cloud_color_handler, "cloud");
-    viewer.addPointCloud(cloud_temp, keypoints_color_handler, "keypoints");
-    viewer.setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 7, "keypoints");
-
-    while(!viewer.wasStopped ())
-    {
-        viewer.spinOnce ();
-    }
-
-
     return cloud_temp;
 }
 
 
-pcl::PointCloud<PointType>::Ptr downsampleCloud(
-        pcl::PointCloud<PointType>::Ptr cloud, float radius_search ){
+pcl::PointCloud<PointType>::Ptr downsampleCloud(pcl::PointCloud<PointType>::Ptr cloud, float radius_search ){
+
     pcl::PointCloud<PointType>::Ptr result (new pcl::PointCloud<PointType> ());
 
     pcl::UniformSampling<PointType> uniform_sampling;
@@ -757,6 +740,21 @@ pcl::PointCloud<PointType>::Ptr downsampleCloud(
     uniform_sampling.filter (*result);
 
     return result;
+}
+void showKeyPoints(pcl::PointCloud<PointType>::Ptr cloud, pcl::PointCloud<PointType>::Ptr keypoints){
+    // Visualization of keypoints along with the original cloud
+    pcl::visualization::PCLVisualizer viewer("PCL Viewer");
+    pcl::visualization::PointCloudColorHandlerCustom<PointType> keypoints_color_handler (keypoints, 0, 255, 0);
+    pcl::visualization::PointCloudColorHandlerCustom<PointType> cloud_color_handler (cloud, 255, 0, 0);
+    viewer.setBackgroundColor( 0.0, 0.0, 0.0 );
+    viewer.addPointCloud(cloud, cloud_color_handler, "cloud");
+    viewer.addPointCloud(keypoints, keypoints_color_handler, "keypoints");
+    viewer.setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 7, "keypoints");
+
+    while(!viewer.wasStopped ())
+    {
+        viewer.spinOnce ();
+    }
 }
 int main(int argc, char *argv[]){
     printf("opencv version: %d.%d.%d\n",CV_VERSION_MAJOR,CV_VERSION_MINOR,CV_VERSION_REVISION);
@@ -773,21 +771,16 @@ int main(int argc, char *argv[]){
     //auto SCENE_cloud = getFilteredCloudFromPGM(pgm_scene_filepath, 5);
     //savePCLPointCloud(SCENE_cloud, pcd_scene_filepath_downsampled);
 
-
-
     pcl::PointCloud<PointType>::Ptr cloud (new pcl::PointCloud<PointType>);
     pcl::io::loadPCDFile (pcd_model_valve_filepath_remeshed, *cloud);
 
-
-    auto filtered_cloud = getSIFTKeyPoints(cloud); // TODO
-    //auto filtered_cloud = downsampleCloud(cloud, 0.15f);
-
+    auto filtered_cloud = getSIFTKeyPoints(cloud);
+    //auto filtered_cloud = downsampleCloud(cloud, 0.5f);
+    showKeyPoints(cloud, filtered_cloud);
     std::cout << "Total points: " << cloud->size () << "; Selected Keypoints: " << filtered_cloud->size () << std::endl;
 
-
-    auto normals = computeNormals(filtered_cloud, true,  true, 10);
+    auto normals = computeNormals(filtered_cloud, false,  true, 10);
     cout << "Normals count:" << normals->size() << endl;
-
 
     //auto features = computePFHDescriptors(cloud, normals, 0.05);
     auto features = computeFPFHDescriptors(filtered_cloud, normals, true, 15); // bigger radius than for normals!
