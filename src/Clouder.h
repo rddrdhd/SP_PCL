@@ -31,7 +31,9 @@
 typedef pcl::PointXYZRGBA PointType;
 typedef pcl::PointNormal NormalType;
 typedef pcl::ReferenceFrame RFType;
-typedef pcl::SHOT352 DescriptorType;
+typedef pcl::SHOT352 SHOTType;
+typedef pcl::PFHSignature125 PFHType;
+typedef pcl::FPFHSignature33 FPFHType;
 
 class Clouder {
 public:
@@ -46,25 +48,21 @@ public:
     void generateSIFTKeypoints();
 
     void showKeypoints();
-    void showNormals(bool ofKeypoints);
+    void showNormals();
 
     void computeFPFHDescriptors();
     void computePFHDescriptors();
     void computeSHOTDescriptors();
 
     pcl::PointCloud<PointType>::Ptr getCloud(){return this->cloud_;};
-    pcl::PointCloud<PointType>::Ptr getKeypointsXYZ(){
-        // Copying the pointwithscale to pointxyz so as visualize the cloud
-        pcl::PointCloud<PointType>::Ptr cloud_temp (new pcl::PointCloud<PointType>);
-        copyPointCloud(this->keypoints_, *cloud_temp);
-        return cloud_temp;};
+    pcl::PointCloud<PointType>::Ptr getKeypointsXYZ();
     pcl::PointCloud<PointType>::Ptr getDownsampledCloud(){return this->downsampled_cloud_;};
 private:
     pcl::PointCloud<PointType>::Ptr cloud_;
     pcl::PointCloud<PointType>::Ptr downsampled_cloud_;
 
-    pcl::PointCloud<pcl::PointNormal>::Ptr point_normals_;
-    pcl::PointCloud<pcl::PointNormal>::Ptr key_point_normals_;
+    pcl::PointCloud<NormalType>::Ptr point_normals_;
+    pcl::PointCloud<NormalType>::Ptr key_point_normals_;
     int k_neighbours_{10};// neighbours used to find normals
 
     pcl::PointCloud<pcl::PointWithScale> keypoints_;
@@ -73,12 +71,12 @@ private:
     int n_scales_per_octave_{4};    // SIFT - the number of scales to compute within each octave
     float min_contrast_{0.005f};    // SIFT - the minimum contrast required for detection
 
-    pcl::PointCloud<pcl::FPFHSignature33>::Ptr FPFH_descriptors_; // Fast Point Feature Histogram descriptors
-    pcl::PointCloud<pcl::PFHSignature125>::Ptr PFH_descriptors_; // Point Feature Histogram descriptors
-    pcl::PointCloud<pcl::SHOT352>::Ptr SHOT_descriptors_; // Signatures of Histograms of Orientations descriptors
+    pcl::PointCloud<FPFHType>::Ptr FPFH_descriptors_; // Fast Point Feature Histogram descriptors
+    pcl::PointCloud<PFHType>::Ptr PFH_descriptors_; // Point Feature Histogram descriptors
+    pcl::PointCloud<SHOTType>::Ptr SHOT_descriptors_; // Signatures of Histograms of Orientations descriptors
 
     float downsampling_radius{0.1}; // spaces between points for uniform sampling
-    int descriptor_k_neighbours_{15};   // FPFH - k neighbours (bigger than k_neighbours_!)
+    int descriptor_k_neighbours_{15};   // FPFH - k neighbours (bigger than k_neighbours_ for normals!)
     float descriptor_radius_{0.1}; // SHOT - radius
     float rf_rad_{0.015f}; // SHOT - reference frame radius
 

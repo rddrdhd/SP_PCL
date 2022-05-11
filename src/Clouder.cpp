@@ -42,17 +42,19 @@ void Clouder::computeNormals() {
     cout<<cloud_point_normals->points[0]<<endl;
 }
 
-void Clouder::showNormals(bool ofKeypoints) {
+pcl::PointCloud<PointType>::Ptr Clouder::getKeypointsXYZ(){
+    // Copying the pointwithscale to pointxyz so as visualize the cloud
+    pcl::PointCloud<PointType>::Ptr cloud_temp (new pcl::PointCloud<PointType>);
+    copyPointCloud(this->keypoints_, *cloud_temp);
+    return cloud_temp;
+};
+
+void Clouder::showNormals() {
     // Visualization of normals along with the original cloud
     pcl::visualization::PCLVisualizer viewer("Normals");
     viewer.setBackgroundColor( 0.0, 0.0, 0.5 );
-    if (ofKeypoints){
-        viewer.addPointCloudNormals<PointType, NormalType> (cloud_, key_point_normals_, 1, 5, "normals");
-    }else{
-
-        viewer.addPointCloudNormals<PointType, NormalType> (cloud_, point_normals_, 1, 5, "normals");
-    }
-
+    viewer.addPointCloudNormals<NormalType, NormalType> ( point_normals_,point_normals_, 1, 5, "normals");
+    
     while(!viewer.wasStopped ())
     {
         viewer.spinOnce ();
@@ -82,10 +84,10 @@ void Clouder::showKeypoints(){
     auto keypointsXYZ = getKeypointsXYZ();
 
     pcl::visualization::PCLVisualizer viewer("PCL Viewer");
-    pcl::visualization::PointCloudColorHandlerCustom<PointType> keypoints_color_handler (keypointsXYZ, 0, 255, 0);
-    pcl::visualization::PointCloudColorHandlerCustom<PointType> cloud_color_handler (cloud_, 255, 0, 0);
+    pcl::visualization::PointCloudColorHandlerCustom<PointType> keypoints_color_handler (keypointsXYZ, 10, 255, 0);
+    pcl::visualization::PointCloudColorHandlerCustom<NormalType> cloud_color_handler (point_normals_, 255, 200, 0);
     viewer.setBackgroundColor( 0.0, 0.0, 0.0);
-    viewer.addPointCloud(cloud_, cloud_color_handler, "cloud");
+    viewer.addPointCloud(point_normals_, cloud_color_handler, "cloud");
     viewer.addPointCloud(keypointsXYZ, keypoints_color_handler, "keypoints");
     viewer.setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 5, "keypoints");
 
@@ -111,7 +113,7 @@ void Clouder::generateDownsampledCloud(){
 void Clouder::computeFPFHDescriptors() {
     pcl::console::TicToc tt; tt.tic();
 
-    pcl::FPFHEstimationOMP<PointType, NormalType, pcl::FPFHSignature33> fpfh;
+    pcl::FPFHEstimationOMP<PointType, NormalType, FPFHType> fpfh;
 
     //auto keypointsXYZ = getKeypointsXYZ();
     //fpfh.setInputCloud (keypointsXYZ); //?
@@ -122,7 +124,7 @@ void Clouder::computeFPFHDescriptors() {
 
     fpfh.setSearchMethod (tree);
 
-    pcl::PointCloud<pcl::FPFHSignature33>::Ptr features (new pcl::PointCloud<pcl::FPFHSignature33> ());
+    pcl::PointCloud<FPFHType>::Ptr features (new pcl::PointCloud<FPFHType> ());
 
     // IMPORTANT: the radius used here has to be larger than the radius used to estimate the surface normals!!!
     fpfh.setKSearch(descriptor_k_neighbours_);
@@ -137,13 +139,13 @@ void Clouder::computeFPFHDescriptors() {
 
 void Clouder::computePFHDescriptors(){ // TODO generating all-zero desriptors
     pcl::console::TicToc tt;tt.tic();
-    pcl::PFHEstimation<PointType, NormalType, pcl::PFHSignature125> pfh;
+    pcl::PFHEstimation<PointType, NormalType, PFHType> pfh;
     pfh.setInputCloud (this->cloud_);
     pfh.setInputNormals (this->point_normals_);
     pcl::search::KdTree<PointType>::Ptr tree (new pcl::search::KdTree<PointType> ());
     pfh.setSearchMethod (tree);
 
-    pcl::PointCloud<pcl::PFHSignature125>::Ptr features (new pcl::PointCloud<pcl::PFHSignature125> ());
+    pcl::PointCloud<PFHType>::Ptr features (new pcl::PointCloud<PFHType> ());
 
     pfh.setRadiusSearch (descriptor_radius_);
     //pfh.setKSearch(descriptor_k_neighbours_);
@@ -169,7 +171,7 @@ void Clouder::computeSHOTDescriptors(){
     lrf_estimator.compute (*frames);
 
 
-    pcl::SHOTEstimationOMP<PointType, NormalType, pcl::SHOT352> shot;
+    pcl::SHOTEstimationOMP<PointType, NormalType, SHOTType> shot;
     shot.setInputCloud (getKeypointsXYZ());
     shot.setInputNormals (point_normals_);
     shot.setSearchSurface(cloud_);
@@ -177,7 +179,7 @@ void Clouder::computeSHOTDescriptors(){
     shot.setLRFRadius(rf_rad_);
     shot.setInputReferenceFrames(frames);
     // Output datasets
-    pcl::PointCloud<pcl::SHOT352>::Ptr features (new pcl::PointCloud<pcl::SHOT352> ());
+    pcl::PointCloud<SHOTType>::Ptr features (new pcl::PointCloud<SHOTType> ());
     // Compute the features
     shot.compute(*features);
 

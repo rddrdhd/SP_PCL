@@ -178,8 +178,8 @@ int compareCloud(int argc, char *argv[]){
     pcl::PointCloud<PointType>::Ptr scene_keypoints (new pcl::PointCloud<PointType> ());
     pcl::PointCloud<NormalType>::Ptr model_normals (new pcl::PointCloud<NormalType> ());
     pcl::PointCloud<NormalType>::Ptr scene_normals (new pcl::PointCloud<NormalType> ());
-    pcl::PointCloud<DescriptorType>::Ptr model_descriptors (new pcl::PointCloud<DescriptorType> ());
-    pcl::PointCloud<DescriptorType>::Ptr scene_descriptors (new pcl::PointCloud<DescriptorType> ());
+    pcl::PointCloud<SHOTType>::Ptr model_descriptors (new pcl::PointCloud<SHOTType> ());
+    pcl::PointCloud<SHOTType>::Ptr scene_descriptors (new pcl::PointCloud<SHOTType> ());
 
     //
     //  Load clouds
@@ -256,7 +256,7 @@ int compareCloud(int argc, char *argv[]){
     //
 
     std::cout << "Computing Descriptor" << std::endl << std::endl;
-    pcl::SHOTEstimationOMP<PointType, NormalType, DescriptorType> estimated_descriptor;
+    pcl::SHOTEstimationOMP<PointType, NormalType, SHOTType> estimated_descriptor;
     estimated_descriptor.setRadiusSearch (descr_rad_);
 
     estimated_descriptor.setInputCloud (model_keypoints);
@@ -276,7 +276,7 @@ int compareCloud(int argc, char *argv[]){
     std::cout << "Finding Model-Scene Correspondences with KdTree" << std::endl << std::endl;
     pcl::CorrespondencesPtr model_scene_corrs (new pcl::Correspondences ());
 
-    pcl::KdTreeFLANN<DescriptorType> match_search;
+    pcl::KdTreeFLANN<SHOTType> match_search;
     match_search.setInputCloud (model_descriptors);
 
     //  For each scene keypoint descriptor, find nearest neighbor into the model keypoints descriptor cloud and add it to the correspondences vector.
@@ -498,7 +498,7 @@ int main(int argc, char *argv[]){
 
     Clouder c = Clouder(pcd_model_valve_filepath_remeshed);
     c.computeNormals();
-    c.showNormals(false);
+    c.showNormals();
 
     //c.generateDownsampledCloud();
     c.generateSIFTKeypoints();
