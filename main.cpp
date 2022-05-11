@@ -497,12 +497,12 @@ int main(int argc, char *argv[]){
     //savePCLPointCloud(SCENE_cloud, pcd_scene_filepath_downsampled);
 
     Clouder c = Clouder(pcd_model_valve_filepath_remeshed);
-    c.computeNormals(); // TODO pcl::Normal vs. pcl::PointNormal
-    //c.showNormals();
+    c.computeNormals();
+    c.showNormals(false);
 
     //c.generateDownsampledCloud();
     c.generateSIFTKeypoints();
-    //c.showSHOTKeypoints();
+    c.showKeypoints();
 
     //c.computePFHDescriptors(); // TODO returning NULL, fix... idk what
     c.computeFPFHDescriptors();

@@ -17,10 +17,8 @@ Clouder::Clouder(const char* filepath) {
 void Clouder::computeNormals() {
     pcl::console::TicToc tt; tt.tic();
     // Estimate the normals of the cloud_xyz
-    pcl::NormalEstimation<PointType, pcl::PointNormal> ne;
-    pcl::NormalEstimation<PointType, pcl::Normal> nee;
-    pcl::PointCloud<pcl::PointNormal>::Ptr cloud_point_normals (new pcl::PointCloud<pcl::PointNormal>);
-    pcl::PointCloud<pcl::Normal>::Ptr cloud_normals (new pcl::PointCloud<pcl::Normal>);
+    pcl::NormalEstimation<PointType, NormalType> ne;
+    pcl::PointCloud<NormalType>::Ptr cloud_point_normals (new pcl::PointCloud<NormalType>);
     pcl::search::KdTree<PointType>::Ptr tree_n(new pcl::search::KdTree<PointType>());
 
     // WIP: fix the redundancy
@@ -29,10 +27,6 @@ void Clouder::computeNormals() {
     ne.setKSearch(this->k_neighbours_);
     ne.compute(*cloud_point_normals);
 
-    nee.setInputCloud(this->cloud_);
-    nee.setSearchMethod(tree_n);
-    nee.setKSearch(this->k_neighbours_);
-    nee.compute(*cloud_normals);
 
     // Copy the xyz info from cloud_xyz and add it to cloud_point_normals as the xyz field in PointNormals estimation is zero
     for(size_t i = 0; i < cloud_point_normals->points.size(); ++i)
@@ -42,18 +36,22 @@ void Clouder::computeNormals() {
         cloud_point_normals->points[i].z = this->cloud_->points[i].z;
     }
     this->point_normals_ = cloud_point_normals;
-    this->normals_ = cloud_normals;
 
     double t = tt.toc();
     pcl::console::print_value( "Computing normals takes %.3f\n[0]:\t", t );
-    cout<<cloud_normals->points[0]<<endl;
+    cout<<cloud_point_normals->points[0]<<endl;
 }
 
-void Clouder::showNormals() {
+void Clouder::showNormals(bool ofKeypoints) {
     // Visualization of normals along with the original cloud
     pcl::visualization::PCLVisualizer viewer("Normals");
     viewer.setBackgroundColor( 0.0, 0.0, 0.5 );
-    viewer.addPointCloudNormals<PointType, pcl::PointNormal> (cloud_, point_normals_, 1, 5, "normals");
+    if (ofKeypoints){
+        viewer.addPointCloudNormals<PointType, NormalType> (cloud_, key_point_normals_, 1, 5, "normals");
+    }else{
+
+        viewer.addPointCloudNormals<PointType, NormalType> (cloud_, point_normals_, 1, 5, "normals");
+    }
 
     while(!viewer.wasStopped ())
     {
@@ -65,9 +63,9 @@ void Clouder::generateSIFTKeypoints() {
     pcl::console::TicToc tt;tt.tic();
 
     // Estimate the sift interest points using normals values from xyz as the Intensity variants
-    pcl::SIFTKeypoint<pcl::PointNormal, pcl::PointWithScale> sift;
+    pcl::SIFTKeypoint<NormalType, pcl::PointWithScale> sift;
 
-    pcl::search::KdTree<pcl::PointNormal>::Ptr tree(new pcl::search::KdTree<pcl::PointNormal> ());
+    pcl::search::KdTree<NormalType>::Ptr tree(new pcl::search::KdTree<NormalType> ());
     sift.setSearchMethod(tree);
     sift.setMinimumContrast(this->min_contrast_);
     sift.setScales(this->min_scale_, this->n_octaves_, this->n_scales_per_octave_);
@@ -79,17 +77,17 @@ void Clouder::generateSIFTKeypoints() {
     pcl::console::print_value( "Scale-invariant feature transform takes %.3f\n\tFrom %d to %d points\n", t, this->size(), this->getKeypointsXYZ()->size());
 }
 
-void Clouder::showSHOTKeypoints(){
+void Clouder::showKeypoints(){
     // Visualization of keypoints along with the original cloud
     auto keypointsXYZ = getKeypointsXYZ();
 
     pcl::visualization::PCLVisualizer viewer("PCL Viewer");
     pcl::visualization::PointCloudColorHandlerCustom<PointType> keypoints_color_handler (keypointsXYZ, 0, 255, 0);
     pcl::visualization::PointCloudColorHandlerCustom<PointType> cloud_color_handler (cloud_, 255, 0, 0);
-    viewer.setBackgroundColor( 0.0, 0.0, 0.0 );
+    viewer.setBackgroundColor( 0.0, 0.0, 0.0);
     viewer.addPointCloud(cloud_, cloud_color_handler, "cloud");
     viewer.addPointCloud(keypointsXYZ, keypoints_color_handler, "keypoints");
-    viewer.setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 7, "keypoints");
+    viewer.setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 5, "keypoints");
 
     while(!viewer.wasStopped ())
     {
@@ -113,11 +111,12 @@ void Clouder::generateDownsampledCloud(){
 void Clouder::computeFPFHDescriptors() {
     pcl::console::TicToc tt; tt.tic();
 
-    pcl::FPFHEstimationOMP<PointType, pcl::Normal, pcl::FPFHSignature33> fpfh;
+    pcl::FPFHEstimationOMP<PointType, NormalType, pcl::FPFHSignature33> fpfh;
 
-    //fpfh.setInputCloud (this->keypointsXYZ_); //?
+    //auto keypointsXYZ = getKeypointsXYZ();
+    //fpfh.setInputCloud (keypointsXYZ); //?
     fpfh.setInputCloud (this->cloud_);
-    fpfh.setInputNormals (this->normals_);
+    fpfh.setInputNormals (this->point_normals_);
 
     pcl::search::KdTree<PointType>::Ptr tree (new pcl::search::KdTree<PointType>);
 
@@ -138,9 +137,9 @@ void Clouder::computeFPFHDescriptors() {
 
 void Clouder::computePFHDescriptors(){ // TODO generating all-zero desriptors
     pcl::console::TicToc tt;tt.tic();
-    pcl::PFHEstimation<PointType, pcl::Normal, pcl::PFHSignature125> pfh;
+    pcl::PFHEstimation<PointType, NormalType, pcl::PFHSignature125> pfh;
     pfh.setInputCloud (this->cloud_);
-    pfh.setInputNormals (this->normals_);
+    pfh.setInputNormals (this->point_normals_);
     pcl::search::KdTree<PointType>::Ptr tree (new pcl::search::KdTree<PointType> ());
     pfh.setSearchMethod (tree);
 
@@ -170,9 +169,9 @@ void Clouder::computeSHOTDescriptors(){
     lrf_estimator.compute (*frames);
 
 
-    pcl::SHOTEstimationOMP<PointType, pcl::Normal, pcl::SHOT352> shot;
+    pcl::SHOTEstimationOMP<PointType, NormalType, pcl::SHOT352> shot;
     shot.setInputCloud (getKeypointsXYZ());
-    shot.setInputNormals (normals_);
+    shot.setInputNormals (point_normals_);
     shot.setSearchSurface(cloud_);
     shot.setRadiusSearch (descriptor_radius_);
     shot.setLRFRadius(rf_rad_);

@@ -29,7 +29,7 @@
 #include <pcl/console/time.h>
 
 typedef pcl::PointXYZRGBA PointType;
-typedef pcl::Normal NormalType;
+typedef pcl::PointNormal NormalType;
 typedef pcl::ReferenceFrame RFType;
 typedef pcl::SHOT352 DescriptorType;
 
@@ -45,8 +45,8 @@ public:
     void generateDownsampledCloud();
     void generateSIFTKeypoints();
 
-    void showSHOTKeypoints();
-    void showNormals();
+    void showKeypoints();
+    void showNormals(bool ofKeypoints);
 
     void computeFPFHDescriptors();
     void computePFHDescriptors();
@@ -64,7 +64,7 @@ private:
     pcl::PointCloud<PointType>::Ptr downsampled_cloud_;
 
     pcl::PointCloud<pcl::PointNormal>::Ptr point_normals_;
-    pcl::PointCloud<pcl::Normal>::Ptr normals_;
+    pcl::PointCloud<pcl::PointNormal>::Ptr key_point_normals_;
     int k_neighbours_{10};// neighbours used to find normals
 
     pcl::PointCloud<pcl::PointWithScale> keypoints_;
