@@ -22,7 +22,7 @@ bool show_keypoints_ (false);
 bool show_correspondences_ (false);
 bool use_cloud_resolution_ (false);
 bool use_hough_ (true);
-float model_ss_ (0.012f);
+float model_ss_ (0.01f);
 float scene_ss_ (0.03f);
 float rf_rad_ (0.015f);
 float descr_rad_ (0.02f);
@@ -486,26 +486,36 @@ int main(int argc, char *argv[]){
     //compareCloud(argc, argv);
    /* const char* pgm_scene_filepath = "/media/rddrdhd/Data/School/SP/project_c/pgm_files/20201017_102106_950_depth.pgm"; // 1 310 976 points
     const char* pcd_scene_filepath_downsampled = "/media/rddrdhd/Data/School/SP/project_c/pcd_files/SCENE_down_cloud.pcd"; // 807 530 points
-   const char* pcd_scene_table_filepath = "/media/rddrdhd/Data/School/SP/project_c/pcd_files/SCENE_table_with_mugs.pcd"; // 1 310 976 points
-    */
-
+    const char* pcd_scene_table_filepath = "/media/rddrdhd/Data/School/SP/project_c/pcd_files/SCENE_table_with_mugs.pcd"; // 1 310 976 points
     const char* pcd_model_cup_filepath= "/media/rddrdhd/Data/School/SP/project_c/pcd_files/MODEL_cup_pink.pcd";
-    const char* pcd_model_valve_filepath_remeshed= "/media/rddrdhd/Data/School/SP/project_c/pcd_valve_resized/MODEL_valve_remesh.pcd"; //10 042 points
     const char* pcd_model_valve_filepath= "/media/rddrdhd/Data/School/SP/project_c/pcd_files/MODEL_valve.pcd";
+    */
+    const char* pcd_scene_filepath_downsampled = "/media/rddrdhd/Data/School/SP/project_c/pcd_files/SCENE_down_cloud.pcd"; // 807 530 points
+    const char* pcd_model_valve_filepath_remeshed= "/media/rddrdhd/Data/School/SP/project_c/pcd_valve_resized/MODEL_valve_remesh.pcd"; //10 042 points
+
     // load PGM and save PCD
     //auto SCENE_cloud = getFilteredCloudFromPGM(pgm_scene_filepath, 5);
     //savePCLPointCloud(SCENE_cloud, pcd_scene_filepath_downsampled);
 
-    Clouder c = Clouder(pcd_model_valve_filepath_remeshed);
-    c.computeNormals();
-    c.showNormals();
+    Clouder model = Clouder(pcd_model_valve_filepath_remeshed);
 
-    //c.generateDownsampledCloud();
-    c.generateSIFTKeypoints();
-    c.showKeypoints();
+    model.computeNormals(); // computes normals for whole cloud, for 5 neighbours
+    //model.showNormals();
+    model.generateDownsampledCloud();
+    //model.generateSIFTKeypoints();
 
-    //c.computePFHDescriptors(); // TODO returning NULL, fix... idk what
-    c.computeFPFHDescriptors();
-    //c.computeSHOTDescriptors(); // TODO returning nan, fix local reference frames!
+    model.computeNormals(5); // computes normals just for keypoints, for 20 neghbours
+    model.showKeypoints();
+    //model.showNormals();
+
+    //model.computePFHDescriptors(); // TODO returning NULL, fix... idk what
+   // model.computeFPFHDescriptors();
+    //model.computeSHOTDescriptors(); // TODO returning nan, fix local reference frames!
+
+
+
+    //Clouder scene = Clouder(pcd_scene_filepath_downsampled);
+   // scene.computeNormals();
+   // model.showNormals();
     return 0;
 }

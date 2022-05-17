@@ -43,7 +43,7 @@ public:
     void setCloud(pcl::PointCloud<PointType>::Ptr cloud){this->cloud_ = cloud;};
     unsigned long size(){return this->cloud_->size();};
 
-    void computeNormals();
+    void computeNormals(int k_neigh = 0, float r_neigh = 0.0);
     void generateDownsampledCloud();
     void generateSIFTKeypoints();
 
@@ -63,7 +63,7 @@ private:
 
     pcl::PointCloud<NormalType>::Ptr point_normals_;
     pcl::PointCloud<NormalType>::Ptr key_point_normals_;
-    int k_neighbours_{10};// neighbours used to find normals
+    int k_neighbours_{5};// neighbours used to find normals
 
     pcl::PointCloud<pcl::PointWithScale> keypoints_;
     float min_scale_{0.2f}; // SIFT - the standard deviation of the smallest scale in the scale space
@@ -75,7 +75,7 @@ private:
     pcl::PointCloud<PFHType>::Ptr PFH_descriptors_; // Point Feature Histogram descriptors
     pcl::PointCloud<SHOTType>::Ptr SHOT_descriptors_; // Signatures of Histograms of Orientations descriptors
 
-    float downsampling_radius{0.1}; // spaces between points for uniform sampling
+    float downsampling_radius{10}; // spaces between points for uniform sampling
     int descriptor_k_neighbours_{15};   // FPFH - k neighbours (bigger than k_neighbours_ for normals!)
     float descriptor_radius_{0.1}; // SHOT - radius
     float rf_rad_{0.015f}; // SHOT - reference frame radius
