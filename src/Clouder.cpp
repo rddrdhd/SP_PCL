@@ -25,7 +25,7 @@ void Clouder::computeNormals(int k_neigh, float r_neigh) {
     pcl::NormalEstimation<PointType, NormalType> ne;
     pcl::PointCloud<NormalType>::Ptr cloud_point_normals (new pcl::PointCloud<NormalType>);
     pcl::search::KdTree<PointType>::Ptr tree_n(new pcl::search::KdTree<PointType>());
-    auto keypoints = downsampled_cloud_;//getKeypointsXYZ();
+    auto keypoints = getKeypointsXYZ();
     if( keypoints){
         ne.setInputCloud( keypoints);
     } else {
@@ -63,13 +63,15 @@ void Clouder::computeNormals(int k_neigh, float r_neigh) {
 }
 
 pcl::PointCloud<PointType>::Ptr Clouder::getKeypointsXYZ(){
-    if(this->keypoints_.empty()){
-       return nullptr;
-    } else {
+    if(this->keypoints_.empty() and  downsampled_cloud_ ){
+       return downsampled_cloud_;
+    } else if(!this->keypoints_.empty()) {
         // Copying the pointwithscale to pointxyz so as visualize the cloud
         pcl::PointCloud<PointType>::Ptr cloud_temp (new pcl::PointCloud<PointType>);
         copyPointCloud(this->keypoints_, *cloud_temp);
         return cloud_temp;
+    } else{
+        return nullptr;
     }
 };
 
@@ -118,8 +120,8 @@ void Clouder::generateSIFTKeypoints() {
 
 void Clouder::showKeypoints(){
     // Visualization of keypoints along with the original cloud
-    auto keypointsXYZ = downsampled_cloud_;//getKeypointsXYZ();
-
+    auto keypointsXYZ = getKeypointsXYZ();
+    if(keypointsXYZ == nullptr){printf("No keypoints to show");return;}
     pcl::visualization::PCLVisualizer viewer("PCL Viewer");
     pcl::visualization::PointCloudColorHandlerCustom<PointType> keypoints_color_handler (keypointsXYZ, 10, 255, 0);
     pcl::visualization::PointCloudColorHandlerCustom<NormalType> cloud_color_handler (point_normals_, 255, 200, 0);

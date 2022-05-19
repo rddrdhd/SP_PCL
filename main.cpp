@@ -501,7 +501,7 @@ int main(int argc, char *argv[]){
 
     model.computeNormals(); // computes normals for whole cloud, for 5 neighbours
     //model.showNormals();
-    model.generateDownsampledCloud();
+    //model.generateDownsampledCloud();
     //model.generateSIFTKeypoints();
 
     model.computeNormals(5); // computes normals just for keypoints, for 20 neghbours
