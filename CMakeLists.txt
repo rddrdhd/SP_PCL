@@ -21,5 +21,5 @@ set(OpenCV_FOUND 1)
 find_package(OpenCV REQUIRED)
 include_directories( ${OpenCV_INCLUDE_DIRS} )
 
-add_executable (main main.cpp src/loader.h src/loader.cpp src/Clouder.cpp src/Clouder.h)
+add_executable (main main.cpp src/loader.h src/loader.cpp src/Clouder.cpp src/Clouder.h src/Matcher.cpp src/Matcher.h)
 target_link_libraries (main ${PCL_LIBRARIES} ${OpenCV_LIBS})

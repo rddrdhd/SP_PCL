@@ -43,27 +43,39 @@ public:
     void setCloud(pcl::PointCloud<PointType>::Ptr cloud){this->cloud_ = cloud;};
     unsigned long size(){return this->cloud_->size();};
 
+    void setKNormalNeigh(int k){this->k_normal_neighbours_ = k;}
+
     void computeNormals(int k_neigh = 0, float r_neigh = 0.0);
-    void generateDownsampledCloud();
-    void generateSIFTKeypoints();
+    void generateDownsampledCloud(float downsampling_r = 0);
+    void generateSIFTKeypoints( int octaves = 0, int scales = 0, float min_scale = 0, float min_contrast = 0);
 
     void showKeypoints();
     void showNormals();
 
-    void computeFPFHDescriptors();
+    void computeFPFHDescriptors(int k_neighbours = 0);
     void computePFHDescriptors();
     void computeSHOTDescriptors();
+
+
+    void findKDTreeCorrespondencesFromSHOT(Clouder model);
+
+    void GCClustering();
 
     pcl::PointCloud<PointType>::Ptr getCloud(){return this->cloud_;};
     pcl::PointCloud<PointType>::Ptr getKeypointsXYZ();
     pcl::PointCloud<PointType>::Ptr getDownsampledCloud(){return this->downsampled_cloud_;};
+
+    pcl::PointCloud<FPFHType>::Ptr FPFH_descriptors_; // Fast Point Feature Histogram descriptors
+    pcl::PointCloud<PFHType>::Ptr PFH_descriptors_; // Point Feature Histogram descriptors
+    pcl::PointCloud<SHOTType>::Ptr SHOT_descriptors_; // Signatures of Histograms of Orientations descriptors
+    pcl::CorrespondencesPtr getCorrespondences(){return this->correspondences_;};
 private:
     pcl::PointCloud<PointType>::Ptr cloud_;
     pcl::PointCloud<PointType>::Ptr downsampled_cloud_;
 
     pcl::PointCloud<NormalType>::Ptr point_normals_;
     pcl::PointCloud<NormalType>::Ptr key_point_normals_;
-    int k_neighbours_{5};// neighbours used to find normals
+    int k_normal_neighbours_{5};// neighbours used to find normals
 
     pcl::PointCloud<pcl::PointWithScale> keypoints_;
     float min_scale_{0.2f}; // SIFT - the standard deviation of the smallest scale in the scale space
@@ -71,14 +83,13 @@ private:
     int n_scales_per_octave_{4};    // SIFT - the number of scales to compute within each octave
     float min_contrast_{0.005f};    // SIFT - the minimum contrast required for detection
 
-    pcl::PointCloud<FPFHType>::Ptr FPFH_descriptors_; // Fast Point Feature Histogram descriptors
-    pcl::PointCloud<PFHType>::Ptr PFH_descriptors_; // Point Feature Histogram descriptors
-    pcl::PointCloud<SHOTType>::Ptr SHOT_descriptors_; // Signatures of Histograms of Orientations descriptors
 
-    float downsampling_radius{10}; // spaces between points for uniform sampling
-    int descriptor_k_neighbours_{15};   // FPFH - k neighbours (bigger than k_neighbours_ for normals!)
-    float descriptor_radius_{0.1}; // SHOT - radius
+    float downsampling_radius_{0.015}; // spaces between points for uniform sampling
+    int descriptor_k_neighbours_{15};   // FPFH - k neighbours (bigger than k_normal_neighbours_ for normals!)
+    float descriptor_radius_{0.02f}; // SHOT - radius
     float rf_rad_{0.015f}; // SHOT - reference frame radius
+
+    pcl::CorrespondencesPtr correspondences_;
 
 };
 

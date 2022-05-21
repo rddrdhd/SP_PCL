@@ -1,6 +1,7 @@
 #include <opencv4/opencv2/core.hpp>
 #include <opencv4/opencv2/imgcodecs.hpp>
 #include "src/Clouder.h"
+#include "src/Matcher.h"
 
 #define CAM_PPX 542.554688 //The ppx and ppy fields describe the pixel coordinates of the principal point (center of projection)
 #define CAM_PPY 394.199219 // The ppx and ppy fields describe the pixel coordinates of the principal point (center of projection)
@@ -484,38 +485,52 @@ pcl::PointCloud<PointType> getFilteredCloudFromPGM(const char* filename, int sca
 int main(int argc, char *argv[]){
     printf("opencv version: %d.%d.%d\n",CV_VERSION_MAJOR,CV_VERSION_MINOR,CV_VERSION_REVISION);
     //compareCloud(argc, argv);
-   /* const char* pgm_scene_filepath = "/media/rddrdhd/Data/School/SP/project_c/pgm_files/20201017_102106_950_depth.pgm"; // 1 310 976 points
+    const char* pgm_scene_filepath = "/media/rddrdhd/Data/School/SP/project_c/pgm_files/20201017_102106_950_depth.pgm"; // 1 310 976 points
     const char* pcd_scene_filepath_downsampled = "/media/rddrdhd/Data/School/SP/project_c/pcd_files/SCENE_down_cloud.pcd"; // 807 530 points
     const char* pcd_scene_table_filepath = "/media/rddrdhd/Data/School/SP/project_c/pcd_files/SCENE_table_with_mugs.pcd"; // 1 310 976 points
     const char* pcd_model_cup_filepath= "/media/rddrdhd/Data/School/SP/project_c/pcd_files/MODEL_cup_pink.pcd";
     const char* pcd_model_valve_filepath= "/media/rddrdhd/Data/School/SP/project_c/pcd_files/MODEL_valve.pcd";
-    */
-    const char* pcd_scene_filepath_downsampled = "/media/rddrdhd/Data/School/SP/project_c/pcd_files/SCENE_down_cloud.pcd"; // 807 530 points
+
     const char* pcd_model_valve_filepath_remeshed= "/media/rddrdhd/Data/School/SP/project_c/pcd_valve_resized/MODEL_valve_remesh.pcd"; //10 042 points
 
     // load PGM and save PCD
     //auto SCENE_cloud = getFilteredCloudFromPGM(pgm_scene_filepath, 5);
     //savePCLPointCloud(SCENE_cloud, pcd_scene_filepath_downsampled);
 
-    Clouder model = Clouder(pcd_model_valve_filepath_remeshed);
-
-    model.computeNormals(); // computes normals for whole cloud, for 5 neighbours
-    //model.showNormals();
-    //model.generateDownsampledCloud();
-    //model.generateSIFTKeypoints();
-
-    model.computeNormals(5); // computes normals just for keypoints, for 20 neghbours
-    model.showKeypoints();
+    Clouder model = Clouder(pcd_model_cup_filepath);
+    model.computeNormals(0, 0.01);
     //model.showNormals();
 
-    //model.computePFHDescriptors(); // TODO returning NULL, fix... idk what
-   // model.computeFPFHDescriptors();
-    //model.computeSHOTDescriptors(); // TODO returning nan, fix local reference frames!
+    //model.generateDownsampledCloud(0.01); // uniform 1 cm grid
+    model.generateSIFTKeypoints(8,4,0.005,0.0005); //
+   // model.showKeypoints();
+
+    //model.computePFHDescriptors(); // TODO returning NULL
+    //model.computeFPFHDescriptors(25);
+    model.computeSHOTDescriptors(); // TODO fix local reference frames!
 
 
 
-    //Clouder scene = Clouder(pcd_scene_filepath_downsampled);
-   // scene.computeNormals();
-   // model.showNormals();
+    Clouder scene = Clouder(pcd_scene_table_filepath); // init Cloud
+    scene.computeNormals(0,0.03); // adds normals for cloud
+    //scene.showNormals();
+
+    //scene.generateDownsampledCloud(0.03); // uniform 3 cm grid
+    scene.generateSIFTKeypoints(8,4,0.005,0.0005); //
+    //scene.computeNormals(0, 0.05);
+    //scene.showKeypoints();
+
+    scene.computeSHOTDescriptors();
+
+    scene.findKDTreeCorrespondencesFromSHOT(model);
+
+    Matcher m = Matcher(scene.getCloud(),
+                         model.getCloud(),
+                         scene.getKeypointsXYZ(),
+                         model.getKeypointsXYZ(),
+                         scene.getCorrespondences());
+
+    //m.GCClustering(); // TODO throwing std::out_of_range ;  111 >= 80
+    //m.output();
     return 0;
 }
