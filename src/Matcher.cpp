@@ -14,8 +14,6 @@ Matcher::Matcher(pcl::PointCloud<PointType>::Ptr s,
     this->model_keypoints_ = mk;
     this->scene_keypoints_ = sk;
     this->correspondences_ = c;
-
-
 }
 
 void Matcher::GCClustering(float cg_size , float cg_thresh){

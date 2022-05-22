@@ -18,19 +18,14 @@ Clouder::Clouder(const char* filepath) {
  * Computes normals - for keypoints. If there are no keypoints yet, computes normals for the whole cloud.
  * */
 void Clouder::computeNormals(int k_neigh, float r_neigh) {
-
     pcl::console::TicToc tt; tt.tic();
-    // Estimate the normals of the cloud_xyz
-
     pcl::NormalEstimation<PointType, NormalType> ne;
     pcl::PointCloud<NormalType>::Ptr cloud_point_normals (new pcl::PointCloud<NormalType>);
     pcl::search::KdTree<PointType>::Ptr tree_n(new pcl::search::KdTree<PointType>());
     auto keypoints = getKeypointsXYZ();
     if(keypoints){
-
         ne.setInputCloud(keypoints);
     } else {
-
         ne.setInputCloud(this->cloud_);
     }
 
@@ -43,7 +38,7 @@ void Clouder::computeNormals(int k_neigh, float r_neigh) {
     } else {
         ne.setKSearch(this->k_normal_neighbours_);
     }
-    //ne.setViewPoint(0,0,70);
+    //ne.setViewPoint(0,0,70); // for valve
     ne.compute(*cloud_point_normals);
 
     // Copy the xyz info from cloud_xyz and add it to cloud_point_normals as the xyz field in PointNormals estimation is zero
@@ -52,34 +47,31 @@ void Clouder::computeNormals(int k_neigh, float r_neigh) {
         cloud_point_normals->points[i].x = this->cloud_->points[i].x;
         cloud_point_normals->points[i].y = this->cloud_->points[i].y;
         cloud_point_normals->points[i].z = this->cloud_->points[i].z;
-
     }
-    if(keypoints){
-
-        this->key_point_normals_ = cloud_point_normals;
-    } else {
-
-        this->point_normals_ = cloud_point_normals;
-    }
-
-
+    this->point_normals_ = cloud_point_normals;
     double t = tt.toc();
     pcl::console::print_value( "Computing normals takes %.3f\n[0]:\t", t );
     cout<<cloud_point_normals->points[0]<<endl;
 }
 
-pcl::PointCloud<PointType>::Ptr Clouder::getKeypointsXYZ(){
-    if(this->keypoints_.empty() and  downsampled_cloud_ ){
+pcl::PointCloud<PointType>::Ptr Clouder::getKeypointsXYZ() {
+    if(this->keypointsWithScale_.empty()
+            and this->keypointsXYZ_.empty()
+            and downsampled_cloud_ ) {
        return downsampled_cloud_;
-    } else if(!this->keypoints_.empty()) {
+    } else if(!this->keypointsWithScale_.empty()) {
         // Copying the pointwithscale to pointxyz so as visualize the cloud
         pcl::PointCloud<PointType>::Ptr cloud_temp (new pcl::PointCloud<PointType>);
-        copyPointCloud(this->keypoints_, *cloud_temp);
+        copyPointCloud(this->keypointsWithScale_, *cloud_temp);
         return cloud_temp;
-    } else{
+    } else if(!this->keypointsXYZ_.empty()) {
+        pcl::PointCloud<PointType>::Ptr cloud_temp (new pcl::PointCloud<PointType>);
+        copyPointCloud(this->keypointsXYZ_, *cloud_temp);
+        return cloud_temp;
+    } else {
         return nullptr;
     }
-};
+}
 
 void Clouder::showNormals() {
     // Visualization of normals along with the original cloud
@@ -87,7 +79,6 @@ void Clouder::showNormals() {
     viewer.setBackgroundColor( 0.0, 0.0, 0.5 );
     viewer.addPointCloud(cloud_, "cloud");
     viewer.addPointCloudNormals<NormalType, NormalType> ( point_normals_,point_normals_, 1, 0.015, "normals");
-
     while(!viewer.wasStopped ())
     {
         viewer.spinOnce ();
@@ -108,14 +99,69 @@ void Clouder::generateSIFTKeypoints( int octaves, int scales, float min_scale, f
                    (scales!=0) ? scales : this->n_scales_per_octave_);
 
     sift.setInputCloud(this->point_normals_);
-    sift.compute(this->keypoints_);
+    sift.compute(this->keypointsWithScale_);
 
     double t = tt.toc();
-    if(this->keypoints_.empty()){
+    if(this->keypointsWithScale_.empty()){
         pcl::console::print_value( "Scale-invariant feature transform takes %.3f\n\tBut did not found any keypoints!\n", t);
 
     } else {
-        pcl::console::print_value( "Scale-invariant feature transform takes %.3f\n\tFrom %d to %d points\n", t, this->size(), this->keypoints_.size());
+        pcl::console::print_value( "Scale-invariant feature transform takes %.3f\n\tFrom %d to %d points\n", t, this->size(), this->keypointsWithScale_.size());
+    }
+}
+
+void Clouder::generateHarrisKeypoints(float radius, int method_number ) {
+    pcl::console::TicToc tt;tt.tic();
+    pcl::HarrisKeypoint3D<PointType,pcl::PointXYZI, NormalType> harris;
+    pcl::search::KdTree<PointType>::Ptr tree(new pcl::search::KdTree<PointType> ());
+    harris.setSearchMethod(tree);
+    harris.setNonMaxSupression(true);
+    harris.setRadius(radius);
+    harris.setRadiusSearch(radius);
+    pcl::HarrisKeypoint3D<PointType,pcl::PointXYZI, NormalType>::ResponseMethod method;
+    std::string method_name;
+    switch( method_number ) {
+        case 1:
+            method = pcl::HarrisKeypoint3D<PointType,pcl::PointXYZI, NormalType>::HARRIS;
+            method_name = "HARRIS";
+            break;
+        case 2:
+            method = pcl::HarrisKeypoint3D<PointType,pcl::PointXYZI, NormalType>::TOMASI;
+            method_name = "TOMASI";
+            break;
+        case 3:
+            method = pcl::HarrisKeypoint3D<PointType,pcl::PointXYZI, NormalType>::NOBLE;
+            method_name = "NOBLE";
+            break;
+        case 4:
+            method = pcl::HarrisKeypoint3D<PointType,pcl::PointXYZI, NormalType>::LOWE;
+            method_name = "LOWE";
+            break;
+        case 5:
+            method = pcl::HarrisKeypoint3D<PointType,pcl::PointXYZI, NormalType>::CURVATURE;
+            method_name = "CURVATURE";
+            break;
+        default:
+            method_name = "INVALID";
+            break;
+    }
+    if(method_name == "INVALID"){
+        printf("Invalid Harris method_number (options are 1-5)");
+        return;
+    }
+    harris.setMethod(method);
+
+    harris.setInputCloud(this->cloud_);
+    pcl::PointCloud<pcl::PointXYZI> keypoints;
+    harris.compute(keypoints);
+
+    copyPointCloud(keypoints, this->keypointsXYZ_);
+
+    double t = tt.toc();
+    if(this->keypointsXYZ_.empty()){
+        pcl::console::print_value( "Harris keypoints (%s) takes %.3f\n\tBut did not found any keypoints!\n",method_name.c_str(), t);
+    } else {
+        pcl::console::print_value( "Harris keypoints (%s) takes %.3f\n\tFrom %d to %d points\n",method_name.c_str(), t, this->size(), this->keypointsXYZ_.size());
     }
 }
 
@@ -166,7 +212,7 @@ void Clouder::computeFPFHDescriptors(int k_neighbours) {
     pcl::FPFHEstimationOMP<PointType, NormalType, FPFHType> fpfh;
 
     auto keypoints = getKeypointsXYZ();
-    if(keypoints == nullptr){
+    if(keypoints == nullptr or keypoints->empty()){
         printf("No keypoints to describe!");
         return;
     }
@@ -175,7 +221,6 @@ void Clouder::computeFPFHDescriptors(int k_neighbours) {
     fpfh.setSearchSurface(this->cloud_);
 
     pcl::search::KdTree<PointType>::Ptr tree (new pcl::search::KdTree<PointType>);
-
     fpfh.setSearchMethod (tree);
 
     pcl::PointCloud<FPFHType>::Ptr features (new pcl::PointCloud<FPFHType> ());
@@ -224,7 +269,6 @@ void Clouder::computePFHDescriptors(){ // TODO generating all-zero desriptors
 void Clouder::computeSHOTDescriptors(){
     pcl::console::TicToc tt;tt.tic();
     auto keypoints = getKeypointsXYZ();
-    // WIP: Local reference frames error
    /* pcl::PointCloud<pcl::ReferenceFrame>::Ptr frames (new pcl::PointCloud<pcl::ReferenceFrame> ());
     pcl::SHOTLocalReferenceFrameEstimation<PointType, pcl::ReferenceFrame> lrf_estimator;
     lrf_estimator.setRadiusSearch (descriptor_radius_);
@@ -248,7 +292,6 @@ void Clouder::computeSHOTDescriptors(){
     pcl::PointCloud<SHOTType>::Ptr features (new pcl::PointCloud<SHOTType> ());
 
     shot.compute(*features);
-
     this->SHOT_descriptors_ = features;
 
     double t = tt.toc();
@@ -283,5 +326,4 @@ void Clouder::findKDTreeCorrespondencesFromSHOT(Clouder model){
         this->correspondences_ = model_scene_corrs;
     }
     std::cout << "Correspondences found: " << model_scene_corrs->size () << std::endl;
-
 }

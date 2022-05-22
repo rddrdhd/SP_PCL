@@ -119,7 +119,7 @@ void parseCommandLine (int argc, char *argv[])
     pcl::console::parse_argument (argc, argv, "--cg_thresh", cg_thresh_);
 }
 
-double computeCloudResolution (const pcl::PointCloud<PointType>::ConstPtr &cloud)
+double computeCloudResolution (const pcl::PointCloud<PointType>::Ptr &cloud)
 {
     double res = 0.0;
     int n_points = 0;
@@ -499,15 +499,19 @@ int main(int argc, char *argv[]){
 
     Clouder model = Clouder(pcd_model_cup_filepath);
     model.computeNormals(0, 0.01);
-    //model.showNormals();
+    model.showNormals();
 
+    model.generateHarrisKeypoints(0.01f,  5);
+    model.showKeypoints();
+    //model.computeFPFHDescriptors(25);
+    /*
     //model.generateDownsampledCloud(0.01); // uniform 1 cm grid
     model.generateSIFTKeypoints(8,4,0.005,0.0005); //
    // model.showKeypoints();
 
     //model.computePFHDescriptors(); // TODO returning NULL
     //model.computeFPFHDescriptors(25);
-    model.computeSHOTDescriptors(); // TODO fix local reference frames!
+    model.computeSHOTDescriptors();
 
 
 
@@ -532,5 +536,7 @@ int main(int argc, char *argv[]){
 
     //m.GCClustering(); // TODO throwing std::out_of_range ;  111 >= 80
     //m.output();
+    */
     return 0;
+
 }

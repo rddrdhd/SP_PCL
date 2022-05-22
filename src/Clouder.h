@@ -24,6 +24,7 @@
 #include <pcl/features/fpfh_omp.h>
 #include <pcl/features/pfh.h>
 #include <pcl/keypoints/sift_keypoint.h>
+#include <pcl/keypoints/harris_3d.h>
 #include <pcl/features/shot_omp.h>
 #include <pcl/features/shot_lrf.h>
 #include <pcl/console/time.h>
@@ -40,14 +41,11 @@ public:
     Clouder();
     explicit Clouder(const char* filepath);
 
-    void setCloud(pcl::PointCloud<PointType>::Ptr cloud){this->cloud_ = cloud;};
-    unsigned long size(){return this->cloud_->size();};
-
-    void setKNormalNeigh(int k){this->k_normal_neighbours_ = k;}
-
     void computeNormals(int k_neigh = 0, float r_neigh = 0.0);
+
     void generateDownsampledCloud(float downsampling_r = 0);
     void generateSIFTKeypoints( int octaves = 0, int scales = 0, float min_scale = 0, float min_contrast = 0);
+    void generateHarrisKeypoints(float radius, int method_number = 1);
 
     void showKeypoints();
     void showNormals();
@@ -56,14 +54,15 @@ public:
     void computePFHDescriptors();
     void computeSHOTDescriptors();
 
-
     void findKDTreeCorrespondencesFromSHOT(Clouder model);
 
-    void GCClustering();
-
+    void setCloud(pcl::PointCloud<PointType>::Ptr cloud){this->cloud_ = cloud;};
     pcl::PointCloud<PointType>::Ptr getCloud(){return this->cloud_;};
+    unsigned long size(){return this->cloud_->size();};
+
+    void setKNormalNeigh(int k){this->k_normal_neighbours_ = k;}
+
     pcl::PointCloud<PointType>::Ptr getKeypointsXYZ();
-    pcl::PointCloud<PointType>::Ptr getDownsampledCloud(){return this->downsampled_cloud_;};
 
     pcl::PointCloud<FPFHType>::Ptr FPFH_descriptors_; // Fast Point Feature Histogram descriptors
     pcl::PointCloud<PFHType>::Ptr PFH_descriptors_; // Point Feature Histogram descriptors
@@ -74,15 +73,14 @@ private:
     pcl::PointCloud<PointType>::Ptr downsampled_cloud_;
 
     pcl::PointCloud<NormalType>::Ptr point_normals_;
-    pcl::PointCloud<NormalType>::Ptr key_point_normals_;
     int k_normal_neighbours_{5};// neighbours used to find normals
 
-    pcl::PointCloud<pcl::PointWithScale> keypoints_;
+    pcl::PointCloud<pcl::PointWithScale> keypointsWithScale_;
+    pcl::PointCloud<PointType> keypointsXYZ_;
     float min_scale_{0.2f}; // SIFT - the standard deviation of the smallest scale in the scale space
     int n_octaves_{6};  // SIFT - the number of octaves (ie doublings of scale) to compute
     int n_scales_per_octave_{4};    // SIFT - the number of scales to compute within each octave
     float min_contrast_{0.005f};    // SIFT - the minimum contrast required for detection
-
 
     float downsampling_radius_{0.015}; // spaces between points for uniform sampling
     int descriptor_k_neighbours_{15};   // FPFH - k neighbours (bigger than k_normal_neighbours_ for normals!)
@@ -90,7 +88,6 @@ private:
     float rf_rad_{0.015f}; // SHOT - reference frame radius
 
     pcl::CorrespondencesPtr correspondences_;
-
 };
 
 
