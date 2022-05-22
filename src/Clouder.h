@@ -20,6 +20,7 @@
 #include <pcl/common/transforms.h>
 #include <pcl/console/parse.h>
 #include <pcl/impl/point_types.hpp>
+#include <pcl/filters/radius_outlier_removal.h>
 
 #include <pcl/features/fpfh_omp.h>
 #include <pcl/features/pfh.h>
@@ -45,7 +46,7 @@ public:
 
     void generateDownsampledCloud(float downsampling_r = 0);
     void generateSIFTKeypoints( int octaves = 0, int scales = 0, float min_scale = 0, float min_contrast = 0);
-    void generateHarrisKeypoints(float radius, int method_number = 1);
+    void generateHarrisKeypoints(float radius,float radius_search, int method_number = 1);
 
     void showKeypoints();
     void showNormals();
@@ -61,6 +62,7 @@ public:
     unsigned long size(){return this->cloud_->size();};
 
     void setKNormalNeigh(int k){this->k_normal_neighbours_ = k;}
+
 
     pcl::PointCloud<PointType>::Ptr getKeypointsXYZ();
 

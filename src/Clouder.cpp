@@ -22,14 +22,11 @@ void Clouder::computeNormals(int k_neigh, float r_neigh) {
     pcl::NormalEstimation<PointType, NormalType> ne;
     pcl::PointCloud<NormalType>::Ptr cloud_point_normals (new pcl::PointCloud<NormalType>);
     pcl::search::KdTree<PointType>::Ptr tree_n(new pcl::search::KdTree<PointType>());
-    auto keypoints = getKeypointsXYZ();
-    if(keypoints){
-        ne.setInputCloud(keypoints);
-    } else {
-        ne.setInputCloud(this->cloud_);
-    }
 
-    ne.setSearchMethod(tree_n);
+    ne.setInputCloud(this->cloud_);
+
+
+    //ne.setSearchMethod(tree_n);
     if (k_neigh != 0){
         this->k_normal_neighbours_ = k_neigh;
         ne.setKSearch(k_neigh);
@@ -79,6 +76,13 @@ void Clouder::showNormals() {
     viewer.setBackgroundColor( 0.0, 0.0, 0.5 );
     viewer.addPointCloud(cloud_, "cloud");
     viewer.addPointCloudNormals<NormalType, NormalType> ( point_normals_,point_normals_, 1, 0.015, "normals");
+
+    pcl::visualization::PointCloudColorHandlerCustom<PointType> cloud_color_handler (cloud_, 255, 200, 0);
+
+    viewer.addPointCloud(cloud_, cloud_color_handler, "cloud");
+    viewer.setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 3, "cloud");
+
+
     while(!viewer.wasStopped ())
     {
         viewer.spinOnce ();
@@ -110,35 +114,35 @@ void Clouder::generateSIFTKeypoints( int octaves, int scales, float min_scale, f
     }
 }
 
-void Clouder::generateHarrisKeypoints(float radius, int method_number ) {
+void Clouder::generateHarrisKeypoints(float radius, float radius_search, int method_number ) {
     pcl::console::TicToc tt;tt.tic();
-    pcl::HarrisKeypoint3D<PointType,pcl::PointXYZI, NormalType> harris;
+    pcl::HarrisKeypoint3D<PointType,pcl::PointXYZI> harris;
     pcl::search::KdTree<PointType>::Ptr tree(new pcl::search::KdTree<PointType> ());
-    harris.setSearchMethod(tree);
+
     harris.setNonMaxSupression(true);
     harris.setRadius(radius);
-    harris.setRadiusSearch(radius);
-    pcl::HarrisKeypoint3D<PointType,pcl::PointXYZI, NormalType>::ResponseMethod method;
+    harris.setRadiusSearch(radius_search);
+    pcl::HarrisKeypoint3D<PointType,pcl::PointXYZI>::ResponseMethod method;
     std::string method_name;
     switch( method_number ) {
         case 1:
-            method = pcl::HarrisKeypoint3D<PointType,pcl::PointXYZI, NormalType>::HARRIS;
+            method = pcl::HarrisKeypoint3D<PointType,pcl::PointXYZI>::HARRIS;
             method_name = "HARRIS";
             break;
         case 2:
-            method = pcl::HarrisKeypoint3D<PointType,pcl::PointXYZI, NormalType>::TOMASI;
+            method = pcl::HarrisKeypoint3D<PointType,pcl::PointXYZI>::TOMASI;
             method_name = "TOMASI";
             break;
         case 3:
-            method = pcl::HarrisKeypoint3D<PointType,pcl::PointXYZI, NormalType>::NOBLE;
+            method = pcl::HarrisKeypoint3D<PointType,pcl::PointXYZI>::NOBLE;
             method_name = "NOBLE";
             break;
         case 4:
-            method = pcl::HarrisKeypoint3D<PointType,pcl::PointXYZI, NormalType>::LOWE;
+            method = pcl::HarrisKeypoint3D<PointType,pcl::PointXYZI>::LOWE;
             method_name = "LOWE";
             break;
         case 5:
-            method = pcl::HarrisKeypoint3D<PointType,pcl::PointXYZI, NormalType>::CURVATURE;
+            method = pcl::HarrisKeypoint3D<PointType,pcl::PointXYZI>::CURVATURE;
             method_name = "CURVATURE";
             break;
         default:
@@ -150,7 +154,7 @@ void Clouder::generateHarrisKeypoints(float radius, int method_number ) {
         return;
     }
     harris.setMethod(method);
-
+    harris.setSearchMethod(tree);
     harris.setInputCloud(this->cloud_);
     pcl::PointCloud<pcl::PointXYZI> keypoints;
     harris.compute(keypoints);
@@ -173,6 +177,7 @@ void Clouder::showKeypoints(){
     pcl::visualization::PointCloudColorHandlerCustom<PointType> keypoints_color_handler (keypointsXYZ, 10, 255, 0);
     pcl::visualization::PointCloudColorHandlerCustom<PointType> cloud_color_handler (cloud_, 255, 200, 0);
 
+
     viewer.setBackgroundColor( 0.0, 0.0, 0.0);
 
     viewer.addPointCloud(keypointsXYZ, keypoints_color_handler, "keypoints");
@@ -180,6 +185,7 @@ void Clouder::showKeypoints(){
     //viewer.addPointCloudNormals<PointType, NormalType> ( cloud_, point_normals_, 1, 0.005, "normals");
 
     viewer.setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 5, "keypoints");
+    //viewer.setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 3, "cloud");
     std::vector<pcl::visualization::Camera> cam;
 
     while(!viewer.wasStopped ())
@@ -327,3 +333,18 @@ void Clouder::findKDTreeCorrespondencesFromSHOT(Clouder model){
     }
     std::cout << "Correspondences found: " << model_scene_corrs->size () << std::endl;
 }
+/*
+pcl::PointCloud<PointType>::Ptr Clouder::getDenseKeypointsXYZ() {
+
+    pcl::PointCloud<PointType>::Ptr keypoints_filtered;
+    pcl::RadiusOutlierRemoval<PointType> outrem;
+    // build the filter
+    auto kp = this->getKeypointsXYZ();
+    outrem.setInputCloud(kp);
+    outrem.setRadiusSearch(1.2);
+    outrem.setMinNeighborsInRadius (2);
+    outrem.setKeepOrganized(true);
+    // apply filter
+    outrem.filter (keypoints_filtered);
+    return keypoints_filtered;
+}*/
