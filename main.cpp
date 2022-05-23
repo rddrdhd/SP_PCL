@@ -490,40 +490,48 @@ int main(int argc, char *argv[]){
         const char* pcd_model_cup_filepath= "/media/rddrdhd/Data/School/SP/project_c/pcd_files/MODEL_cup_pink.pcd";
 
         Clouder model = Clouder(pcd_model_cup_filepath);
-        model.computeNormals(20);
+        model.computeNormals(10);
         //model.showNormals();
-        //model.generateHarrisKeypoints(0.002f, 0.01f,  1);
-        model.generateSIFTKeypoints(6,4,0.002f,0.005f);
-        model.showKeypoints();
+        //model.generateDownsampledCloud(0.01f);
+        float r = 0.011f;
+        model.generateHarrisKeypoints(r,r,  3);
+        //model.generateSIFTKeypoints(6,4,0.002f,0.005f);
+
+        //model.showKeypoints();
         model.computeSHOTDescriptors();
 
         Clouder scene = Clouder(pcd_scene_table_filepath);
-        scene.computeNormals(20);
+        scene.computeNormals(10);
         //scene.showNormals();
-        //scene.generateHarrisKeypoints(0.03f, 1);
 
-        scene.generateSIFTKeypoints(6,4,0.002f,0.005f);
-        scene.showKeypoints();
+        scene.generateHarrisKeypoints(r,r, 3);
+        //scene.generateSIFTKeypoints(6,4,0.002f,0.005f);
+        //scene.generateDownsampledCloud(0.03f);
+
+        //scene.showKeypoints();
         scene.computeSHOTDescriptors();
 
         scene.findKDTreeCorrespondencesFromSHOT(model);
 
+       /*
+        * Find instances
+        */
 
-
-/*
         std::vector<Eigen::Matrix4f, Eigen::aligned_allocator<Eigen::Matrix4f> > rototranslations;
         std::vector<pcl::Correspondences> clustered_corrs;
 
         pcl::GeometricConsistencyGrouping<PointType, PointType> gc_clusterer;
-        gc_clusterer.setGCSize (cg_size_);
-        gc_clusterer.setGCThreshold (cg_thresh_);
+        gc_clusterer.setGCSize (0.18f);//cg_size_);
+        gc_clusterer.setGCThreshold (30);//cg_thresh_);
 
         gc_clusterer.setInputCloud (model.getKeypointsXYZ());
         gc_clusterer.setSceneCloud (scene.getKeypointsXYZ());
         gc_clusterer.setModelSceneCorrespondences (scene.getCorrespondences());
 
         gc_clusterer.recognize (rototranslations, clustered_corrs);
-
+/*
+ * Print info
+ */
         std::cout << "Model instances found: " << rototranslations.size () << std::endl;
         for (std::size_t i = 0; i < rototranslations.size (); ++i)
         {
@@ -541,8 +549,52 @@ int main(int argc, char *argv[]){
             printf ("\n");
             printf ("        t = < %0.3f, %0.3f, %0.3f >\n", translation (0), translation (1), translation (2));
         }
-*/
 
+/*
+ * Visualization
+ */
+        auto scene_keypoints = scene.getKeypointsXYZ();
+        auto model_keypoints = model.getKeypointsXYZ();
+        auto model_cloud = model.getCloud();
+        auto scene_cloud = scene.getCloud();
+
+        pcl::visualization::PCLVisualizer viewer ("Correspondence Grouping");
+        viewer.addPointCloud(scene_cloud, "scene_cloud");
+
+        pcl::PointCloud<PointType>::Ptr off_scene_model (new pcl::PointCloud<PointType> ());
+        pcl::PointCloud<PointType>::Ptr off_scene_model_keypoints (new pcl::PointCloud<PointType> ());
+
+        //  We are translating the model so that it doesn't end in the middle of the scene representation
+        pcl::transformPointCloud (*model_cloud, *off_scene_model, Eigen::Vector3f (-1,0,0), Eigen::Quaternionf (1, 0, 0, 0));
+        pcl::transformPointCloud (*model_keypoints, *off_scene_model_keypoints, Eigen::Vector3f (-1,0,0), Eigen::Quaternionf (1, 0, 0, 0));
+
+        pcl::visualization::PointCloudColorHandlerCustom<PointType> off_scene_model_color_handler (off_scene_model, 255, 255, 128);
+        viewer.addPointCloud (off_scene_model, off_scene_model_color_handler, "off_scene_model");
+
+        pcl::visualization::PointCloudColorHandlerCustom<PointType> scene_keypoints_color_handler (scene_keypoints, 255,255,255);
+        viewer.addPointCloud (scene_keypoints, scene_keypoints_color_handler, "scene_keypoints");
+        viewer.setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 2, "scene_keypoints");
+
+        pcl::visualization::PointCloudColorHandlerCustom<PointType> off_scene_model_keypoints_color_handler (off_scene_model_keypoints, 0, 0, 255);
+        viewer.addPointCloud (off_scene_model_keypoints, off_scene_model_keypoints_color_handler, "off_scene_model_keypoints");
+        viewer.setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 5, "off_scene_model_keypoints");
+
+        for (std::size_t i = 0; i < rototranslations.size (); ++i)
+        {
+            pcl::PointCloud<PointType>::Ptr rotated_model (new pcl::PointCloud<PointType> ());
+            pcl::transformPointCloud (*model_cloud, *rotated_model, rototranslations[i]);
+
+            std::stringstream ss_cloud;
+            ss_cloud << "instance" << i;
+
+            pcl::visualization::PointCloudColorHandlerCustom<PointType> rotated_model_color_handler (rotated_model, 255, 0, 0);
+            viewer.addPointCloud (rotated_model, rotated_model_color_handler, ss_cloud.str ());
+        }
+
+        while (!viewer.wasStopped ())
+        {
+            viewer.spinOnce ();
+        }
     } else {
         const char* pgm_scene_filepath = "/media/rddrdhd/Data/School/SP/project_c/pgm_files/20201017_102106_950_depth.pgm"; // 1 310 976 points
         const char* pcd_scene_filepath_downsampled = "/media/rddrdhd/Data/School/SP/project_c/pcd_files/SCENE_down_cloud.pcd"; // 807 530 points
@@ -550,7 +602,10 @@ int main(int argc, char *argv[]){
         Clouder model = Clouder(pcd_model_valve_filepath_remeshed);
         model.computeNormals(5);
         //model.showNormals();
-        model.generateSIFTKeypoints(6,4,0.2f,0.005f);
+
+        model.generateHarrisKeypoints(0.025f,0.25f, 1);
+
+        //model.generateSIFTKeypoints(6,4,0.2f,0.005f);
         model.showKeypoints();
         /*
         Clouder scene = Clouder(pcd_scene_filepath_downsampled);
