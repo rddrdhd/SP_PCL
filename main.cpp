@@ -492,23 +492,26 @@ int main(int argc, char *argv[]){
         Clouder model = Clouder(pcd_model_cup_filepath);
         model.computeNormals(10);
         //model.showNormals();
-        //model.generateDownsampledCloud(0.01f);
-        float r = 0.011f;
-        model.generateHarrisKeypoints(r,r,  3);
-        //model.generateSIFTKeypoints(6,4,0.002f,0.005f);
+        float r_harris = 0.011f;
+        float r_downs = 0.023f;
+        float r = r_downs;
 
-        //model.showKeypoints();
+        //model.generateDownsampledCloud(r_downs);
+        model.generateHarrisKeypoints(r_harris,r_harris,  3);
+        model.generateSIFTKeypoints(6,4,0.002f,0.005f);
+
+        model.showKeypoints();
         model.computeSHOTDescriptors();
 
         Clouder scene = Clouder(pcd_scene_table_filepath);
         scene.computeNormals(10);
         //scene.showNormals();
 
-        scene.generateHarrisKeypoints(r,r, 3);
-        //scene.generateSIFTKeypoints(6,4,0.002f,0.005f);
-        //scene.generateDownsampledCloud(0.03f);
+        //scene.generateHarrisKeypoints(r_harris,r_harris, 3);
+        scene.generateSIFTKeypoints(6,2,0.002f,0.005f);
+        //scene.generateDownsampledCloud(1.2*r);
 
-        //scene.showKeypoints();
+        scene.showKeypoints();
         scene.computeSHOTDescriptors();
 
         scene.findKDTreeCorrespondencesFromSHOT(model);
@@ -516,19 +519,64 @@ int main(int argc, char *argv[]){
        /*
         * Find instances
         */
-
+        auto model_scene_corrs = scene.getCorrespondences();
+        auto scene_keypoints = scene.getKeypointsXYZ();
+        auto model_keypoints = model.getKeypointsXYZ();
+        auto model_cloud = model.getCloud();
+        auto scene_cloud = scene.getCloud();
         std::vector<Eigen::Matrix4f, Eigen::aligned_allocator<Eigen::Matrix4f> > rototranslations;
         std::vector<pcl::Correspondences> clustered_corrs;
+        bool using_houg = false;
+        if( using_houg){
+            auto model_normals = model.getNormals();
+            auto scene_normals = scene.getNormals();
+            pcl::PointCloud<RFType>::Ptr model_rf (new pcl::PointCloud<RFType> ());
+            pcl::PointCloud<RFType>::Ptr scene_rf (new pcl::PointCloud<RFType> ());
 
-        pcl::GeometricConsistencyGrouping<PointType, PointType> gc_clusterer;
-        gc_clusterer.setGCSize (0.18f);//cg_size_);
-        gc_clusterer.setGCThreshold (30);//cg_thresh_);
+            pcl::BOARDLocalReferenceFrameEstimation<PointType, NormalType, RFType> rf_est;
+            rf_est.setFindHoles (true);
+            rf_est.setRadiusSearch (rf_rad_);
 
-        gc_clusterer.setInputCloud (model.getKeypointsXYZ());
-        gc_clusterer.setSceneCloud (scene.getKeypointsXYZ());
-        gc_clusterer.setModelSceneCorrespondences (scene.getCorrespondences());
+            rf_est.setInputCloud (model_keypoints);
+            rf_est.setInputNormals (model_normals);
+            rf_est.setSearchSurface (model_cloud);
+            rf_est.compute (*model_rf);
 
-        gc_clusterer.recognize (rototranslations, clustered_corrs);
+            rf_est.setInputCloud (scene_keypoints);
+            rf_est.setInputNormals (scene_normals);
+            rf_est.setSearchSurface (scene_cloud);
+            rf_est.compute (*scene_rf);
+
+            //  Clustering
+            pcl::Hough3DGrouping<PointType, PointType, RFType, RFType> clusterer;
+            clusterer.setHoughBinSize (0.11);//cg_size_);
+            clusterer.setHoughThreshold (30);//cg_thresh_);
+            clusterer.setUseInterpolation (true);
+            clusterer.setUseDistanceWeight (false);
+
+            clusterer.setInputCloud (model_keypoints);
+            clusterer.setInputRf (model_rf);
+            clusterer.setSceneCloud (scene_keypoints);
+            clusterer.setSceneRf (scene_rf);
+            clusterer.setModelSceneCorrespondences (model_scene_corrs);
+
+            //clusterer.cluster (clustered_corrs);
+            clusterer.recognize (rototranslations, clustered_corrs);
+        } else {
+            pcl::GeometricConsistencyGrouping<PointType, PointType> gc_clusterer;
+            //gc_clusterer.setGCSize (cg_size_);
+            //gc_clusterer.setGCThreshold (cg_thresh_);
+            gc_clusterer.setGCSize (0.18f);//cg_size_);
+            gc_clusterer.setGCThreshold (20);//cg_thresh_);
+
+            gc_clusterer.setInputCloud (model.getKeypointsXYZ());
+            gc_clusterer.setSceneCloud (scene.getKeypointsXYZ());
+            gc_clusterer.setModelSceneCorrespondences (scene.getCorrespondences());
+
+            gc_clusterer.recognize (rototranslations, clustered_corrs);
+        }
+
+
 /*
  * Print info
  */
@@ -553,10 +601,7 @@ int main(int argc, char *argv[]){
 /*
  * Visualization
  */
-        auto scene_keypoints = scene.getKeypointsXYZ();
-        auto model_keypoints = model.getKeypointsXYZ();
-        auto model_cloud = model.getCloud();
-        auto scene_cloud = scene.getCloud();
+
 
         pcl::visualization::PCLVisualizer viewer ("Correspondence Grouping");
         viewer.addPointCloud(scene_cloud, "scene_cloud");

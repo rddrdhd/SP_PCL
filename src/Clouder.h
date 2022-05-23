@@ -62,6 +62,7 @@ public:
     unsigned long size(){return this->cloud_->size();};
 
     void setKNormalNeigh(int k){this->k_normal_neighbours_ = k;}
+    pcl::PointCloud<NormalType>::Ptr getNormals(){return this->point_normals_;};
 
 
     pcl::PointCloud<PointType>::Ptr getKeypointsXYZ();
